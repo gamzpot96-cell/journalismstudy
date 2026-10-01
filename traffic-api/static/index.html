@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>ITS 실시간 교통정보</title>
+
+
+    <style>
+
+        /* ------------------------------
+           기본 설정
+        ------------------------------ */
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        body {
+            margin: 0;
+
+            font-family:
+                Arial,
+                "Noto Sans KR",
+                sans-serif;
+
+            background-color: #f4f6f8;
+
+            color: #222;
+        }
+
+
+        /* ------------------------------
+           Header
+        ------------------------------ */
+
+        header {
+            background-color: #1f2937;
+
+            color: white;
+
+            padding: 25px 20px;
+        }
+
+
+        .header-content {
+            max-width: 1100px;
+
+            margin: 0 auto;
+        }
+
+
+        .header-content h1 {
+            margin: 0 0 8px;
+
+            font-size: 28px;
+        }
+
+
+        .header-content p {
+            margin: 0;
+
+            color: #d1d5db;
+        }
+
+
+        /* ------------------------------
+           Main
+        ------------------------------ */
+
+        main {
+            max-width: 1100px;
+
+            margin: 30px auto;
+
+            padding: 0 20px;
+        }
+
+
+        /* ------------------------------
+           검색 영역
+        ------------------------------ */
+
+        .search-box {
+            background-color: white;
+
+            padding: 24px;
+
+            border-radius: 10px;
+
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.08);
+
+            margin-bottom: 24px;
+        }
+
+
+        .search-box h2 {
+            margin-top: 0;
+
+            margin-bottom: 20px;
+        }
+
+
+        .search-form {
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, 1fr) auto;
+
+            gap: 12px;
+
+            align-items: end;
+        }
+
+
+        .input-group {
+            display: flex;
+
+            flex-direction: column;
+        }
+
+
+        .input-group label {
+            margin-bottom: 6px;
+
+            font-size: 14px;
+
+            font-weight: bold;
+        }
+
+
+        .input-group input {
+            width: 100%;
+
+            padding: 11px;
+
+            border:
+                1px solid #d1d5db;
+
+            border-radius: 6px;
+
+            font-size: 14px;
+        }
+
+
+        .search-button {
+            padding: 11px 20px;
+
+            border: none;
+
+            border-radius: 6px;
+
+            background-color: #2563eb;
+
+            color: white;
+
+            font-size: 14px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+
+        .search-button:hover {
+            background-color: #1d4ed8;
+        }
+
+
+        /* ------------------------------
+           상태 메시지
+        ------------------------------ */
+
+        .status-message {
+            display: none;
+
+            margin-top: 16px;
+
+            padding: 12px;
+
+            border-radius: 6px;
+
+            background-color: #eff6ff;
+
+            color: #1d4ed8;
+        }
+
+
+        .error-message {
+            display: none;
+
+            margin-top: 16px;
+
+            padding: 12px;
+
+            border-radius: 6px;
+
+            background-color: #fef2f2;
+
+            color: #dc2626;
+        }
+
+
+        /* ------------------------------
+           결과 영역
+        ------------------------------ */
+
+        .result-box {
+            background-color: white;
+
+            padding: 24px;
+
+            border-radius: 10px;
+
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+
+        .result-header {
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-bottom: 20px;
+        }
+
+
+        .result-header h2 {
+            margin: 0;
+        }
+
+
+        .result-count {
+            color: #6b7280;
+
+            font-size: 14px;
+        }
+
+
+        /* ------------------------------
+           교통정보 테이블
+        ------------------------------ */
+
+        .traffic-table {
+            width: 100%;
+
+            border-collapse: collapse;
+        }
+
+
+        .traffic-table th {
+            padding: 14px;
+
+            background-color: #f3f4f6;
+
+            border-bottom:
+                2px solid #d1d5db;
+
+            text-align: left;
+
+            font-size: 14px;
+        }
+
+
+        .traffic-table td {
+            padding: 14px;
+
+            border-bottom:
+                1px solid #e5e7eb;
+
+            font-size: 14px;
+        }
+
+
+        .traffic-table tr:hover {
+            background-color: #f9fafb;
+        }
+
+
+        /* ------------------------------
+           교통 상태
+        ------------------------------ */
+
+        .traffic-good {
+            color: #16a34a;
+
+            font-weight: bold;
+        }
+
+
+        .traffic-normal {
+            color: #d97706;
+
+            font-weight: bold;
+        }
+
+
+        .traffic-slow {
+            color: #dc2626;
+
+            font-weight: bold;
+        }
+
+
+        /* ------------------------------
+           데이터 없음
+        ------------------------------ */
+
+        .empty-message {
+            padding: 50px 20px;
+
+            text-align: center;
+
+            color: #6b7280;
+        }
+
+
+        /* ------------------------------
+           모바일
+        ------------------------------ */
+
+        @media (max-width: 800px) {
+
+            .search-form {
+                grid-template-columns:
+                    1fr 1fr;
+            }
+
+        }
+
+
+        @media (max-width: 500px) {
+
+            .search-form {
+                grid-template-columns: 1fr;
+            }
+
+
+            .traffic-table {
+                font-size: 12px;
+            }
+
+
+            .traffic-table th,
+            .traffic-table td {
+                padding: 8px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- ==========================
+         Header
+    =========================== -->
+
+    <header>
+
+        <div class="header-content">
+
+            <h1>
+                🚗 실시간 교통정보
+            </h1>
+
+            <p>
+                ITS 국가교통정보센터 API를 이용한
+                교통정보 조회 서비스
+            </p>
+
+        </div>
+
+    </header>
+
+
+    <!-- ==========================
+         Main
+    =========================== -->
+
+    <main>
+
+
+        <!-- ==========================
+             검색 영역
+        =========================== -->
+
+        <section class="search-box">
+
+            <h2>
+                교통정보 조회
+            </h2>
+
+
+            <div class="search-form">
+
+
+                <!-- 최소 경도 -->
+
+                <div class="input-group">
+
+                    <label for="minX">
+                        최소 경도
+                    </label>
+
+                    <input
+                        type="number"
+                        id="minX"
+                        value="126.8"
+                        step="0.001"
+                    >
+
+                </div>
+
+
+                <!-- 최대 경도 -->
+
+                <div class="input-group">
+
+                    <label for="maxX">
+                        최대 경도
+                    </label>
+
+                    <input
+                        type="number"
+                        id="maxX"
+                        value="127.0"
+                        step="0.001"
+                    >
+
+                </div>
+
+
+                <!-- 최소 위도 -->
+
+                <div class="input-group">
+
+                    <label for="minY">
+                        최소 위도
+                    </label>
+
+                    <input
+                        type="number"
+                        id="minY"
+                        value="37.4"
+                        step="0.001"
+                    >
+
+                </div>
+
+
+                <!-- 최대 위도 -->
+
+                <div class="input-group">
+
+                    <label for="maxY">
+                        최대 위도
+                    </label>
+
+                    <input
+                        type="number"
+                        id="maxY"
+                        value="37.6"
+                        step="0.001"
+                    >
+
+                </div>
+
+
+                <!-- 조회 버튼 -->
+
+                <button
+                    type="button"
+                    class="search-button"
+                    onclick="searchTraffic()"
+                >
+                    조회
+                </button>
+
+
+            </div>
+
+
+            <!-- 조회 중 메시지 -->
+
+            <div
+                id="statusMessage"
+                class="status-message"
+            >
+                교통정보를 조회하고 있습니다...
+            </div>
+
+
+            <!-- 오류 메시지 -->
+
+            <div
+                id="errorMessage"
+                class="error-message"
+            ></div>
+
+
+        </section>
+
+
+        <!-- ==========================
+             결과 영역
+        =========================== -->
+
+        <section class="result-box">
+
+
+            <div class="result-header">
+
+                <h2>
+                    교통정보
+                </h2>
+
+
+                <span
+                    id="resultCount"
+                    class="result-count"
+                >
+                    조회 결과 없음
+                </span>
+
+            </div>
+
+
+            <!-- 교통정보 테이블 -->
+
+            <table class="traffic-table">
+
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            도로명
+                        </th>
+
+                        <th>
+                            현재 속도
+                        </th>
+
+                        <th>
+                            통행시간
+                        </th>
+
+                        <th>
+                            교통 상태
+                        </th>
+
+                        <th>
+                            업데이트
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="trafficTableBody">
+
+                    <tr>
+
+                        <td
+                            colspan="5"
+                            class="empty-message"
+                        >
+                            조회 버튼을 눌러
+                            교통정보를 확인하세요.
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+
+            </table>
+
+
+        </section>
+
+
+    </main>
+
+
+    <!-- ==========================
+         JavaScript
+    =========================== -->
+
+    <script>
+
+
+        /*
+         * FastAPI의 교통정보 API 주소입니다.
+         *
+         * index.html과 FastAPI가
+         * 같은 서버에서 실행되기 때문에
+         * /traffic만 작성하면 됩니다.
+         */
+
+        const API_URL = "/traffic";
+
+
+        /*
+         * 교통정보 조회
+         */
+
+        async function searchTraffic() {
+
+
+            // 입력값 가져오기
+
+            const minX =
+                document.getElementById("minX").value;
+
+            const maxX =
+                document.getElementById("maxX").value;
+
+            const minY =
+                document.getElementById("minY").value;
+
+            const maxY =
+                document.getElementById("maxY").value;
+
+
+            // 화면 요소 가져오기
+
+            const statusMessage =
+                document.getElementById(
+                    "statusMessage"
+                );
+
+            const errorMessage =
+                document.getElementById(
+                    "errorMessage"
+                );
+
+            const trafficTableBody =
+                document.getElementById(
+                    "trafficTableBody"
+                );
+
+            const resultCount =
+                document.getElementById(
+                    "resultCount"
+                );
+
+
+            // 기존 오류 메시지 숨기기
+
+            errorMessage.style.display = "none";
+
+
+            // 조회 중 메시지 표시
+
+            statusMessage.style.display = "block";
+
+
+            try {
+
+
+                /*
+                 * FastAPI에 보낼 URL을 만듭니다.
+                 */
+
+                const requestUrl =
+                    `${API_URL}` +
+                    `?min_x=${minX}` +
+                    `&max_x=${maxX}` +
+                    `&min_y=${minY}` +
+                    `&max_y=${maxY}`;
+
+
+                /*
+                 * FastAPI의 /traffic API 호출
+                 */
+
+                const response =
+                    await fetch(requestUrl);
+
+
+                /*
+                 * HTTP 오류 확인
+                 */
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        "교통정보를 가져오지 못했습니다."
+                    );
+
+                }
+
+
+                /*
+                 * JSON 데이터 가져오기
+                 */
+
+                const trafficData =
+                    await response.json();
+
+
+                /*
+                 * 결과 화면에 표시
+                 */
+
+                displayTrafficData(
+                    trafficData
+                );
+
+
+            } catch (error) {
+
+
+                /*
+                 * 오류 메시지 표시
+                 */
+
+                errorMessage.textContent =
+                    "오류가 발생했습니다: " +
+                    error.message;
+
+
+                errorMessage.style.display =
+                    "block";
+
+
+            } finally {
+
+
+                /*
+                 * 조회 중 메시지 숨기기
+                 */
+
+                statusMessage.style.display =
+                    "none";
+
+            }
+
+        }
+
+
+        /*
+         * 교통정보 화면 표시
+         */
+
+        function displayTrafficData(
+            trafficData
+        ) {
+
+
+            const trafficTableBody =
+                document.getElementById(
+                    "trafficTableBody"
+                );
+
+
+            const resultCount =
+                document.getElementById(
+                    "resultCount"
+                );
+
+
+            /*
+             * ITS API 응답에서
+             * 교통정보 배열을 찾습니다.
+             */
+
+            let trafficItems = [];
+
+
+            if (Array.isArray(trafficData)) {
+
+                trafficItems =
+                    trafficData;
+
+            }
+
+            else if (
+                Array.isArray(trafficData.body)
+            ) {
+
+                trafficItems =
+                    trafficData.body;
+
+            }
+
+            else if (
+                Array.isArray(trafficData.items)
+            ) {
+
+                trafficItems =
+                    trafficData.items;
+
+            }
+
+
+            /*
+             * 결과 개수 표시
+             */
+
+            resultCount.textContent =
+                "총 " +
+                trafficItems.length +
+                "건";
+
+
+            /*
+             * 기존 결과 삭제
+             */
+
+            trafficTableBody.innerHTML = "";
+
+
+            /*
+             * 결과가 없는 경우
+             */
+
+            if (trafficItems.length === 0) {
+
+                trafficTableBody.innerHTML = `
+
+                    <tr>
+
+                        <td
+                            colspan="5"
+                            class="empty-message"
+                        >
+                            조회된 교통정보가 없습니다.
+                        </td>
+
+                    </tr>
+
+                `;
+
+                return;
+
+            }
+
+
+            /*
+             * 교통정보를 하나씩 표시
+             */
+
+            trafficItems.forEach(
+                function (trafficItem) {
+
+
+                    // 도로명
+
+                    const roadName =
+                        trafficItem.roadName || "-";
+
+
+                    // 현재 속도
+
+                    const speed =
+                        trafficItem.speed || 0;
+
+
+                    // 통행시간
+
+                    const travelTime =
+                        trafficItem.travelTime || 0;
+
+
+                    // 생성 시간
+
+                    const createdDate =
+                        trafficItem.createdDate || "-";
+
+
+                    /*
+                     * 교통 상태 결정
+                     */
+
+                    let trafficStatus = "";
+
+                    let trafficClass = "";
+
+
+                    if (speed >= 60) {
+
+                        trafficStatus =
+                            "원활";
+
+                        trafficClass =
+                            "traffic-good";
+
+                    }
+
+                    else if (speed >= 30) {
+
+                        trafficStatus =
+                            "서행";
+
+                        trafficClass =
+                            "traffic-normal";
+
+                    }
+
+                    else {
+
+                        trafficStatus =
+                            "정체";
+
+                        trafficClass =
+                            "traffic-slow";
+
+                    }
+
+
+                    /*
+                     * 새로운 테이블 행 생성
+                     */
+
+                    const tableRow =
+                        document.createElement("tr");
+
+
+                    /*
+                     * 테이블 내용 작성
+                     */
+
+                    tableRow.innerHTML = `
+
+                        <td>
+                            ${roadName}
+                        </td>
+
+                        <td>
+                            ${speed} km/h
+                        </td>
+
+                        <td>
+                            ${travelTime}분
+                        </td>
+
+                        <td class="${trafficClass}">
+                            ${trafficStatus}
+                        </td>
+
+                        <td>
+                            ${createdDate}
+                        </td>
+
+                    `;
+
+
+                    /*
+                     * 테이블에 행 추가
+                     */
+
+                    trafficTableBody.appendChild(
+                        tableRow
+                    );
+
+                }
+            );
+
+        }
+
+
+    </script>
+
+
+</body>
+
+</html>
