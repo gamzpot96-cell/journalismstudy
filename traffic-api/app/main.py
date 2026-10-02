@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 
@@ -24,6 +28,9 @@ async def home():
 
     return FileResponse("static/index.html")
 
+@app.get("/map")
+async def map_page():
+    return FileResponse("static/map.html")
 
 # --------------------------------------------------
 # 교통정보 API
@@ -54,17 +61,15 @@ async def traffic(
         return traffic_data
 
     except ValueError as error:
-
-        # API Key가 없거나 설정 오류가 발생한 경우
+        logger.exception("설정값 오류")
         raise HTTPException(
             status_code=500,
             detail=str(error)
         )
 
-    except Exception as error:
-
-        # ITS API 호출에 문제가 발생한 경우
+    except Exception:
+        logger.exception("교통정보 조회 중 오류 발생")
         raise HTTPException(
             status_code=502,
-            detail=f"ITS API 호출 중 오류가 발생했습니다: {error}"
+            detail="ITS API 호출 중 오류가 발생했습니다."
         )

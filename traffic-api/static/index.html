@@ -763,221 +763,91 @@
          * 교통정보 화면 표시
          */
 
-        function displayTrafficData(
-            trafficData
-        ) {
+       function displayTrafficData(trafficData) {
 
+    console.log("===== 1. displayTrafficData 실행 =====");
 
-            const trafficTableBody =
-                document.getElementById(
-                    "trafficTableBody"
-                );
+    const tableBody = document.getElementById("trafficTableBody");
+    const resultCount = document.getElementById("resultCount");
 
+    console.log("===== 2. HTML 요소 확인 =====");
+    console.log("tableBody:", tableBody);
+    console.log("resultCount:", resultCount);
 
-            const resultCount =
-                document.getElementById(
-                    "resultCount"
-                );
+    console.log("===== 3. FastAPI 응답 확인 =====");
+    console.log(trafficData);
 
+    // body가 있는지 확인
+    if (!trafficData.body) {
+        console.error("body가 없습니다.");
+        return;
+    }
 
-            /*
-             * ITS API 응답에서
-             * 교통정보 배열을 찾습니다.
-             */
+    console.log("body 확인:", trafficData.body);
 
-            let trafficItems = [];
+    // items가 있는지 확인
+    if (!trafficData.body.items) {
+        console.error("items가 없습니다.");
+        return;
+    }
 
+    const trafficItems = trafficData.body.items;
 
-            if (Array.isArray(trafficData)) {
+    console.log("===== 4. 교통정보 확인 =====");
+    console.log("전체 교통정보:", trafficItems);
+    console.log("전체 개수:", trafficItems.length);
 
-                trafficItems =
-                    trafficData;
+    // 처음 50개만 사용
+    const displayItems = trafficItems.slice(0, 50);
 
-            }
+    console.log("화면 표시 개수:", displayItems.length);
 
-            else if (
-                Array.isArray(trafficData.body)
-            ) {
+    // 기존 테이블 내용 삭제
+    tableBody.innerHTML = "";
 
-                trafficItems =
-                    trafficData.body;
+    // 결과 개수 표시
+    resultCount.textContent =
+        "전체 " +
+        trafficItems.length +
+        "건 중 " +
+        displayItems.length +
+        "건 표시";
 
-            }
+    // 교통정보 표시
+    displayItems.forEach(function (trafficItem) {
 
-            else if (
-                Array.isArray(trafficData.items)
-            ) {
+        console.log("현재 교통정보:", trafficItem);
 
-                trafficItems =
-                    trafficData.items;
+        const row = document.createElement("tr");
 
-            }
+        const roadName = trafficItem.roadName;
+        const speed = Number(trafficItem.speed);
+        const travelTime = trafficItem.travelTime;
+        const createdDate = trafficItem.createdDate;
 
+        let trafficStatus = "";
 
-            /*
-             * 결과 개수 표시
-             */
-
-            resultCount.textContent =
-                "총 " +
-                trafficItems.length +
-                "건";
-
-
-            /*
-             * 기존 결과 삭제
-             */
-
-            trafficTableBody.innerHTML = "";
-
-
-            /*
-             * 결과가 없는 경우
-             */
-
-            if (trafficItems.length === 0) {
-
-                trafficTableBody.innerHTML = `
-
-                    <tr>
-
-                        <td
-                            colspan="5"
-                            class="empty-message"
-                        >
-                            조회된 교통정보가 없습니다.
-                        </td>
-
-                    </tr>
-
-                `;
-
-                return;
-
-            }
-
-
-            /*
-             * 교통정보를 하나씩 표시
-             */
-
-            trafficItems.forEach(
-                function (trafficItem) {
-
-
-                    // 도로명
-
-                    const roadName =
-                        trafficItem.roadName || "-";
-
-
-                    // 현재 속도
-
-                    const speed =
-                        trafficItem.speed || 0;
-
-
-                    // 통행시간
-
-                    const travelTime =
-                        trafficItem.travelTime || 0;
-
-
-                    // 생성 시간
-
-                    const createdDate =
-                        trafficItem.createdDate || "-";
-
-
-                    /*
-                     * 교통 상태 결정
-                     */
-
-                    let trafficStatus = "";
-
-                    let trafficClass = "";
-
-
-                    if (speed >= 60) {
-
-                        trafficStatus =
-                            "원활";
-
-                        trafficClass =
-                            "traffic-good";
-
-                    }
-
-                    else if (speed >= 30) {
-
-                        trafficStatus =
-                            "서행";
-
-                        trafficClass =
-                            "traffic-normal";
-
-                    }
-
-                    else {
-
-                        trafficStatus =
-                            "정체";
-
-                        trafficClass =
-                            "traffic-slow";
-
-                    }
-
-
-                    /*
-                     * 새로운 테이블 행 생성
-                     */
-
-                    const tableRow =
-                        document.createElement("tr");
-
-
-                    /*
-                     * 테이블 내용 작성
-                     */
-
-                    tableRow.innerHTML = `
-
-                        <td>
-                            ${roadName}
-                        </td>
-
-                        <td>
-                            ${speed} km/h
-                        </td>
-
-                        <td>
-                            ${travelTime}분
-                        </td>
-
-                        <td class="${trafficClass}">
-                            ${trafficStatus}
-                        </td>
-
-                        <td>
-                            ${createdDate}
-                        </td>
-
-                    `;
-
-
-                    /*
-                     * 테이블에 행 추가
-                     */
-
-                    trafficTableBody.appendChild(
-                        tableRow
-                    );
-
-                }
-            );
-
+        if (speed >= 60) {
+            trafficStatus = "원활";
+        } else if (speed >= 30) {
+            trafficStatus = "서행";
+        } else {
+            trafficStatus = "정체";
         }
+
+        row.innerHTML = `
+            <td>${roadName}</td>
+            <td>${speed} km/h</td>
+            <td>${travelTime}분</td>
+            <td>${trafficStatus}</td>
+            <td>${createdDate}</td>
+        `;
+
+        tableBody.appendChild(row);
+    });
+
+    console.log("===== 5. 화면 표시 완료 =====");
+}
 
 
     </script>

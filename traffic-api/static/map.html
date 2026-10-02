@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+
+    <meta charset="utf-8">
+
+    <title>ITS 실시간 교통정보 지도</title>
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/css/ol.css"
+        type="text/css"
+    >
+
+    <script
+        src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/build/ol.js">
+    </script>
+
+    <style>
+
+        body {
+            margin: 0;
+            font-family: Arial, "Noto Sans KR", sans-serif;
+        }
+
+        h2 {
+            padding: 15px 20px;
+            margin: 0;
+            background-color: #1f2937;
+            color: white;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+        #trafficButton {
+        position: absolute;
+        top: 75px;
+        left: 20px;
+        z-index: 1000;
+
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+
+        background-color: white;
+        cursor: pointer;
+    }
+    </style>
+
+</head>
+
+
+<body>
+
+    <h2>🚗 ITS 실시간 교통정보 지도</h2>
+
+    <!-- 교통정보 표시 버튼 -->
+    <button id="trafficButton">
+        교통정보 켜기
+    </button>
+
+    <div id="map"></div>
+
+    <script>
+        // 기본 지도 생성
+        const map = new ol.Map({
+            target: "map",
+
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM()
+                })
+            ],
+
+            view: new ol.View({
+                projection: "EPSG:3857",
+                center: ol.proj.fromLonLat([
+                    127.766922,
+                    35.907757
+                ]),
+                zoom: 7,
+                maxZoom: 15,
+                minZoom: 7
+            })
+        });
+
+
+        // ITS 교통정보 타일 레이어
+        const trafficTileLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url:
+                    "https://its.go.kr:9443/geoserver/gwc/service/wmts/rest/" +
+                    "ntic:N_LEVEL_{z}/" +
+                    "ntic:REALTIME/" +
+                    "EPSG:3857/" +
+                    "EPSG:3857:{z}/{y}/{x}" +
+                    "?format=image/png8"
+            }),
+
+            // 처음에는 교통정보를 표시하지 않음
+            visible: false
+        });
+
+
+        // 지도에 교통정보 레이어 추가
+        map.addLayer(trafficTileLayer);
+
+
+        // 버튼 가져오기
+        const trafficButton =
+            document.getElementById("trafficButton");
+
+
+        // 버튼을 클릭하면 교통정보를 켜고 끔
+        trafficButton.addEventListener("click", function () {
+
+            const currentVisible =
+                trafficTileLayer.getVisible();
+
+            trafficTileLayer.setVisible(!currentVisible);
+
+
+            if (currentVisible) {
+                trafficButton.textContent =
+                    "교통정보 켜기";
+            } else {
+                trafficButton.textContent =
+                    "교통정보 끄기";
+            }
+
+        });
+    </script>
+
+</body>
+
+
+</html>
