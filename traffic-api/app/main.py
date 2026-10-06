@@ -69,6 +69,8 @@ async def traffic(
 
             road_type = traffic_item.get("roadDrcType")
 
+            link_id = traffic_item.get("linkId")
+
             speed = int(
                 float(traffic_item.get("speed", 0))
             )
@@ -100,6 +102,7 @@ async def traffic(
             traffic_information = (
                 road_name,
                 road_type,
+                link_id,
                 speed,
                 travel_time,
                 traffic_status,
