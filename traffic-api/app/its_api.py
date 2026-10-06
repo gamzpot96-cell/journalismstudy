@@ -30,8 +30,7 @@ async def get_traffic_information(
     if not ITS_API_KEY:
         logger.error("ITS_API_KEY가 설정되지 않았습니다.")
         raise ValueError("ITS_API_KEY가 설정되지 않았습니다.")
-        print("ITS_API_KEY 존재 여부:", bool(ITS_API_KEY))
-
+    print("ITS_API_KEY 존재 여부: True",)
     request_parameters = {
         "apiKey": ITS_API_KEY,
         "type": "all",
