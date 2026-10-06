@@ -240,3 +240,7 @@ SELECT
     collected_at
 FROM traffic_information
 ORDER BY traffic_id;
+
+SHOW DATABASES;
+SHOW TABLES;
+DESCRIBE traffic_information;
