@@ -36,6 +36,48 @@ async def map_page():
 # 교통정보 API
 # --------------------------------------------------
 
+@app.get("/test-its-http")
+async def test_its_http():
+
+    import httpx
+
+    test_url = "http://openapi.its.go.kr/trafficInfo"
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=20.0,
+            follow_redirects=True
+        ) as client:
+
+            response = await client.get(
+                test_url,
+                params={
+                    "type": "all",
+                    "drcType": "all",
+                    "minX": 126.8,
+                    "maxX": 127.0,
+                    "minY": 37.4,
+                    "maxY": 37.6,
+                    "getType": "json"
+                }
+            )
+
+        return {
+            "success": True,
+            "status_code": response.status_code,
+            "content_type": response.headers.get("content-type"),
+            "response_length": len(response.content),
+            "response_preview": response.text[:500]
+        }
+
+    except Exception as error:
+
+        return {
+            "success": False,
+            "error_type": type(error).__name__,
+            "error": str(error)
+        }
+
 @app.get("/test-its-connection")
 async def test_its_connection():
     """
