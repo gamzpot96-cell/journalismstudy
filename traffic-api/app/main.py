@@ -36,6 +36,35 @@ async def map_page():
 # 교통정보 API
 # --------------------------------------------------
 
+@app.get("/test-external")
+async def test_external():
+
+    import httpx
+
+    test_url = "https://example.com"
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=20.0
+        ) as client:
+
+            response = await client.get(test_url)
+
+        return {
+            "success": True,
+            "status_code": response.status_code,
+            "response_length": len(response.content)
+        }
+
+    except Exception as error:
+
+        return {
+            "success": False,
+            "error_type": type(error).__name__,
+            "error": str(error)
+        }
+
+
 @app.get("/test-its-http")
 async def test_its_http():
 
