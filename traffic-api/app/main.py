@@ -5,7 +5,11 @@ from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
 
 from app.its_api import get_traffic_information
-from app.database import save_traffic_information_list, create_traffic_table
+from app.database import (
+    save_traffic_information_list,
+    create_traffic_table,
+    get_recent_traffic_list
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +48,7 @@ async def traffic(
     max_y: float = Query(..., description="최대 위도")
 ):
     try:
-        # 1. ITS API 조회
+        # 1. ITS API 조회 시도
         traffic_data = await get_traffic_information(
             min_x=min_x,
             max_x=max_x,
@@ -59,7 +63,6 @@ async def traffic(
         traffic_information_list = []
         for traffic_item in traffic_items:
             road_name = traffic_item.get("roadName")
-            # roadDrcType이 비어있을 경우 '일반'으로 기본값 처리
             road_type = traffic_item.get("roadDrcType") or "일반"
             link_id = traffic_item.get("linkId")
             speed = int(float(traffic_item.get("speed", 0)))
@@ -91,26 +94,27 @@ async def traffic(
             )
             traffic_information_list.append(traffic_information)
 
-        # 3. DB 저장을 백그라운드 작업으로 등록 (사용자 대기 시간 소요 방지)
+        # 3. 백그라운드 DB 저장
         if traffic_information_list:
             background_tasks.add_task(
                 save_traffic_information_list,
                 traffic_information_list
             )
 
-        # 4. 즉시 응답 반환
         return traffic_data
 
     except Exception as e:
-        logger.exception("ITS API 호출 실패, 예외 처리 진행: %s", e)
+        logger.warning("ITS API 타임아웃 발생 -> Supabase DB 최신 데이터로 대체 반환: %s", e)
         
-        # Vercel 응답 차단 및 프론트엔드 먹통 방지용 기본 응답
+        # 4. ITS API 실패 시 Supabase DB에서 최신 저장 데이터 조회하여 반환
+        db_items = get_recent_traffic_list(limit=200)
+        
         return {
             "header": {
-                "resultCode": "99",
-                "resultMsg": "ITS API 응답 지연으로 인한 임시 응답"
+                "resultCode": "00",
+                "resultMsg": "Supabase DB 백업 데이터 반환"
             },
             "body": {
-                "items": []
+                "items": db_items
             }
         }

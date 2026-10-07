@@ -1,4 +1,3 @@
-# app/database.py
 import os
 import logging
 import psycopg
@@ -10,7 +9,7 @@ def get_database_connection():
     """
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
-    # 5432 대신 Transaction Pooler 포트인 6543을 기본값으로 권장합니다.
+    # Vercel Serverless 환경 대응을 위해 Transaction Pooler 포트(6543) 사용
     port = os.getenv("POSTGRES_PORT", "6543")
     
     return psycopg.connect(
@@ -78,3 +77,34 @@ def save_traffic_information_list(traffic_list):
         logger.error("DB 연결 실패 - .env 호스트/비밀번호 정보 또는 인터넷 연결을 확인하세요: %s", e)
     except Exception as e:
         logger.error("교통정보 DB 저장 중 오류 발생: %s", e)
+
+
+def get_recent_traffic_list(limit: int = 200):
+    """
+    ITS API 타임아웃 발생 시 백업용으로 Supabase DB에서 최신 교통정보 데이터를 조회합니다.
+    """
+    select_query = """
+    SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
+    FROM traffic_information
+    ORDER BY traffic_id DESC
+    LIMIT %s;
+    """
+    traffic_items = []
+    try:
+        with get_database_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(select_query, (limit,))
+                rows = cur.fetchall()
+                for row in rows:
+                    traffic_items.append({
+                        "roadName": row[0],
+                        "roadDrcType": row[1],
+                        "linkId": row[2],
+                        "speed": str(row[3]) if row[3] is not None else "0",
+                        "travelTime": str(row[4]) if row[4] is not None else "0",
+                        "createdDate": row[6].strftime("%Y%m%d%H%M%S") if row[6] else ""
+                    })
+    except Exception as e:
+        logger.error("DB 교통정보 조회 중 오류 발생: %s", e)
+    
+    return traffic_items
