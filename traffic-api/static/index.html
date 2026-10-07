@@ -246,7 +246,7 @@
 
     <main>
 
-        <!-- 동네 이름 검색 영역 -->
+        <!-- 1. 동네 이름 검색 영역 -->
         <section class="search-box">
             <h2>동네 이름으로 교통정보 조회</h2>
             <div style="display: flex; gap: 10px;">
@@ -255,7 +255,7 @@
             </div>
         </section>
 
-        <!-- 좌표 범위 검색 영역 -->
+        <!-- 2. 좌표 범위 검색 영역 -->
         <section class="search-box">
             <h2>좌표 범위로 조회</h2>
 
@@ -290,7 +290,7 @@
             <div id="errorMessage" class="error-message"></div>
         </section>
 
-        <!-- 결과 영역 -->
+        <!-- 3. 결과 테이블 영역 -->
         <section class="result-box">
             <div class="result-header">
                 <h2>교통정보</h2>
@@ -322,6 +322,7 @@
     <script>
         const API_URL = "/traffic";
 
+        // 동네 이름 검색 함수
         async function searchTrafficByLocation() {
             const location = document.getElementById("locationInput").value;
             if (!location) {
@@ -355,6 +356,7 @@
             }
         }
 
+        // 좌표 범위 검색 함수
         async function searchTraffic() {
             const minX = document.getElementById("minX").value;
             const maxX = document.getElementById("maxX").value;
@@ -386,6 +388,7 @@
             }
         }
 
+        // 교통 데이터 화면 출력 함수
         function displayTrafficData(trafficData) {
             const tableBody = document.getElementById("trafficTableBody");
             const resultCount = document.getElementById("resultCount");
