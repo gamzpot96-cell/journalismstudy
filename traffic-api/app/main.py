@@ -58,9 +58,9 @@ async def traffic(
             min_y=min_y,
             max_y=max_y
         )
-
-        traffic_items = traffic_data.get("body", {}).get("items", [])
-        logger.info("ITS에서 받은 교통정보 개수: %d", len(traffic_items))
+# 검색된 좌표 영역의 중심점 계산
+        center_lon = (min_x + max_x) / 2
+        center_lat = (min_y + max_y) / 2
 
         traffic_information_list = []
         for traffic_item in traffic_items:
@@ -83,6 +83,7 @@ async def traffic(
                 if created_date else None
             )
 
+            # None 대신 계산된 중심 좌표(center_lat, center_lon)를 저장
             traffic_information = (
                 road_name,
                 road_type,
@@ -90,8 +91,8 @@ async def traffic(
                 speed,
                 travel_time,
                 traffic_status,
-                None,
-                None,
+                center_lat,
+                center_lon,
                 collected_at
             )
             traffic_information_list.append(traffic_information)
