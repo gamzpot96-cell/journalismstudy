@@ -1,4 +1,3 @@
-# app/main.py
 import logging
 from datetime import datetime
 
@@ -53,13 +52,14 @@ async def traffic(
             max_y=max_y
         )
 
-# app/main.py 중 traffic 함수 내부
+        traffic_items = traffic_data.get("body", {}).get("items", [])
+        logger.info("ITS에서 받은 교통정보 개수: %d", len(traffic_items))
 
         # 2. DB 저장용 데이터 변환
         traffic_information_list = []
         for traffic_item in traffic_items:
             road_name = traffic_item.get("roadName")
-            # roadDrcType이 None이거나 비어있을 경우 '일반' 또는 '미지정'으로 기본값 처리
+            # roadDrcType이 비어있을 경우 '일반'으로 기본값 처리
             road_type = traffic_item.get("roadDrcType") or "일반"
             link_id = traffic_item.get("linkId")
             speed = int(float(traffic_item.get("speed", 0)))
@@ -101,15 +101,16 @@ async def traffic(
         # 4. 즉시 응답 반환
         return traffic_data
 
-    except ValueError as error:
-        logger.exception("설정값 오류")
-        raise HTTPException(
-            status_code=500,
-            detail=str(error)
-        )
-    except Exception:
-        logger.exception("교통정보 조회 중 오류 발생")
-        raise HTTPException(
-            status_code=502,
-            detail="교통정보 조회 중 오류가 발생했습니다."
-        )
+    except Exception as e:
+        logger.exception("ITS API 호출 실패, 예외 처리 진행: %s", e)
+        
+        # Vercel 응답 차단 및 프론트엔드 먹통 방지용 기본 응답
+        return {
+            "header": {
+                "resultCode": "99",
+                "resultMsg": "ITS API 응답 지연으로 인한 임시 응답"
+            },
+            "body": {
+                "items": []
+            }
+        }
