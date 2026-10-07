@@ -7,9 +7,6 @@
     <title>ITS 실시간 교통정보</title>
 
     <style>
-        /* ------------------------------
-           기본 설정
-        ------------------------------ */
         * {
             box-sizing: border-box;
         }
@@ -21,9 +18,6 @@
             color: #222;
         }
 
-        /* ------------------------------
-           Header
-        ------------------------------ */
         header {
             background-color: #1f2937;
             color: white;
@@ -48,7 +42,6 @@
             color: #d1d5db;
         }
 
-        /* 지도 버튼 스타일 */
         .map-link-btn {
             display: inline-block;
             background-color: #059669;
@@ -65,18 +58,12 @@
             background-color: #047857;
         }
 
-        /* ------------------------------
-           Main
-        ------------------------------ */
         main {
             max-width: 1100px;
             margin: 30px auto;
             padding: 0 20px;
         }
 
-        /* ------------------------------
-           검색 영역
-        ------------------------------ */
         .search-box {
             background-color: white;
             padding: 24px;
@@ -131,9 +118,6 @@
             background-color: #1d4ed8;
         }
 
-        /* ------------------------------
-           상태 메시지
-        ------------------------------ */
         .status-message {
             display: none;
             margin-top: 16px;
@@ -152,9 +136,6 @@
             color: #dc2626;
         }
 
-        /* ------------------------------
-           결과 영역
-        ------------------------------ */
         .result-box {
             background-color: white;
             padding: 24px;
@@ -178,9 +159,6 @@
             font-size: 14px;
         }
 
-        /* ------------------------------
-           교통정보 테이블
-        ------------------------------ */
         .traffic-table {
             width: 100%;
             border-collapse: collapse;
@@ -204,9 +182,6 @@
             background-color: #f9fafb;
         }
 
-        /* ------------------------------
-           교통 상태 색상
-        ------------------------------ */
         .traffic-good {
             color: #16a34a;
             font-weight: bold;
@@ -222,18 +197,12 @@
             font-weight: bold;
         }
 
-        /* ------------------------------
-           데이터 없음
-        ------------------------------ */
         .empty-message {
             padding: 50px 20px;
             text-align: center;
             color: #6b7280;
         }
 
-        /* ------------------------------
-           모바일 반응형
-        ------------------------------ */
         @media (max-width: 800px) {
             .header-content {
                 flex-direction: column;
@@ -265,24 +234,30 @@
 
 <body>
 
-    <!-- Header -->
     <header>
         <div class="header-content">
             <div>
                 <h1>🚗 실시간 교통정보</h1>
                 <p>ITS 국가교통정보센터 API를 이용한 교통정보 조회 서비스</p>
             </div>
-            <!-- 지도 페이지 이동 버튼 추가 -->
             <a href="/map" class="map-link-btn">🗺️ 실시간 교통 지도 보러가기</a>
         </div>
     </header>
 
-    <!-- Main -->
     <main>
 
-        <!-- 검색 영역 -->
+        <!-- 동네 이름 검색 영역 -->
         <section class="search-box">
-            <h2>교통정보 조회</h2>
+            <h2>동네 이름으로 교통정보 조회</h2>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="locationInput" placeholder="예: 인사동, 종로구, 혜화동" style="flex: 1; padding: 11px; border: 1px solid #d1d5db; border-radius: 6px;">
+                <button type="button" class="search-button" onclick="searchTrafficByLocation()">동네 검색</button>
+            </div>
+        </section>
+
+        <!-- 좌표 범위 검색 영역 -->
+        <section class="search-box">
+            <h2>좌표 범위로 조회</h2>
 
             <div class="search-form">
                 <div class="input-group">
@@ -344,9 +319,41 @@
 
     </main>
 
-    <!-- JavaScript -->
     <script>
         const API_URL = "/traffic";
+
+        async function searchTrafficByLocation() {
+            const location = document.getElementById("locationInput").value;
+            if (!location) {
+                alert("검색할 동네 이름을 입력하세요.");
+                return;
+            }
+
+            const statusMessage = document.getElementById("statusMessage");
+            const errorMessage = document.getElementById("errorMessage");
+
+            errorMessage.style.display = "none";
+            statusMessage.style.display = "block";
+
+            try {
+                const requestUrl = `/traffic/search?location=${encodeURIComponent(location)}`;
+                const response = await fetch(requestUrl);
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || "교통정보를 가져오지 못했습니다.");
+                }
+
+                const trafficData = await response.json();
+                displayTrafficData(trafficData);
+
+            } catch (error) {
+                errorMessage.textContent = "오류가 발생했습니다: " + error.message;
+                errorMessage.style.display = "block";
+            } finally {
+                statusMessage.style.display = "none";
+            }
+        }
 
         async function searchTraffic() {
             const minX = document.getElementById("minX").value;

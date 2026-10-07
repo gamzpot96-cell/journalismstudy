@@ -62,7 +62,6 @@
             background-color: #f3f4f6;
         }
 
-        /* 팝업 스타일 */
         .ol-popup {
             position: absolute;
             background-color: white;
@@ -84,8 +83,9 @@
         <a href="/" class="header-link">목록으로 이동 ➔</a>
     </h2>
 
-    <!-- 상단 컨트롤 버튼 그룹 -->
     <div class="control-box">
+        <input type="text" id="mapSearchInput" placeholder="동네 이름 (예: 인사동)" style="padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+        <button id="searchMapBtn" class="btn">동네 이동 및 조회</button>
         <button id="trafficTileBtn" class="btn">교통정보 레이어 켜기</button>
         <button id="fetchTrafficDataBtn" class="btn">현재 화면 영역 정보 조회</button>
     </div>
@@ -132,10 +132,9 @@
             trafficTileBtn.textContent = currentVisible ? "교통정보 레이어 켜기" : "교통정보 레이어 끄기";
         });
 
-        // 4. 현재 지도의 바운딩 박스(경도/위도)를 계산하여 백엔드로 요청
+        // 4. 현재 지도의 바운딩 박스를 계산하여 백엔드로 요청
         const fetchTrafficDataBtn = document.getElementById("fetchTrafficDataBtn");
         fetchTrafficDataBtn.addEventListener("click", async function () {
-            // EPSG:3857 좌표계를 위경도(EPSG:4326)로 변환
             const extent = map.getView().calculateExtent(map.getSize());
             const minCoord = ol.proj.toLonLat([extent[0], extent[1]]);
             const maxCoord = ol.proj.toLonLat([extent[2], extent[3]]);
@@ -157,6 +156,30 @@
             } catch (err) {
                 alert("교통정보 조회 중 오류가 발생했습니다.");
                 console.error(err);
+            }
+        });
+
+        // 5. 동네 이름으로 검색하여 지도 조회
+        const searchMapBtn = document.getElementById("searchMapBtn");
+        searchMapBtn.addEventListener("click", async function () {
+            const location = document.getElementById("mapSearchInput").value;
+            if (!location) {
+                alert("동네 이름을 입력해주세요.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/traffic/search?location=${encodeURIComponent(location)}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "검색 실패");
+                }
+
+                const result = await response.json();
+                const itemCount = result?.body?.items?.length || 0;
+                alert(`'${location}' 주변 교통정보 조회가 완료되었습니다! (수집 건수: ${itemCount}건)`);
+            } catch (err) {
+                alert("오류: " + err.message);
             }
         });
     </script>
