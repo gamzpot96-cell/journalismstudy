@@ -1,104 +1,76 @@
 import os
-
+import logging
 import psycopg
-from dotenv import load_dotenv
 
-
-# .env 파일 불러오기
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def get_database_connection():
     """
-    Supabase PostgreSQL 데이터베이스에 연결합니다.
+    Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
-
-    connection = psycopg.connect(
+    return psycopg.connect(
         host=os.getenv("POSTGRES_HOST"),
-        port=int(os.getenv("POSTGRES_PORT", 5432)),
+        port=os.getenv("POSTGRES_PORT", "5432"),
         user=os.getenv("POSTGRES_USER"),
         password=os.getenv("POSTGRES_PASSWORD"),
-        dbname=os.getenv("POSTGRES_DATABASE"),
+        dbname=os.getenv("POSTGRES_DB", "postgres"),
         sslmode=os.getenv("POSTGRES_SSLMODE", "require")
     )
 
-    return connection
 
-
-def save_traffic_information_list(traffic_information_list):
+def create_traffic_table():
     """
-    ITS에서 받은 여러 개의 교통정보를
-    Supabase에 저장합니다.
+    traffic_information 테이블이 없을 경우 생성합니다.
+    (앱 시작 시 또는 필요할 때 호출)
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS traffic_information (
+        traffic_id SERIAL PRIMARY KEY,
+        road_name VARCHAR(100),
+        road_type VARCHAR(50),
+        link_id VARCHAR(100),
+        speed NUMERIC,
+        travel_time NUMERIC,
+        traffic_status VARCHAR(20),
+        latitude DECIMAL(10, 7),
+        longitude DECIMAL(10, 7),
+        collected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    try:
+        with get_database_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(create_table_query)
+                conn.commit()
+                logger.info("traffic_information 테이블 확인/생성 완료")
+    except psycopg.OperationalError as e:
+        logger.error("DB 연결 실패 (호스트 또는 네트워크 설정 점검 필요): %s", e)
+    except Exception as e:
+        logger.error("테이블 생성 중 오류 발생: %s", e)
+
+
+def save_traffic_information_list(traffic_list):
+    """
+    수집된 교통정보 리스트를 Supabase DB에 다량(Bulk)으로 저장합니다.
+    """
+    if not traffic_list:
+        return
+
+    insert_query = """
+    INSERT INTO traffic_information (
+        road_name, road_type, link_id, speed, travel_time,
+        traffic_status, latitude, longitude, collected_at
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
     """
 
-    connection = get_database_connection()
-    cursor = connection.cursor()
-
-    # 한 번에 처리할 데이터 개수
-    batch_size = 500
-
-    for start_index in range(0, len(traffic_information_list), batch_size):
-
-        end_index = start_index + batch_size
-
-        batch_data = traffic_information_list[
-            start_index:end_index
-        ]
-
-        value_placeholders = []
-
-        query_parameters = []
-
-        for traffic_information in batch_data:
-
-            value_placeholders.append(
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            )
-
-            query_parameters.extend(
-                traffic_information
-            )
-
-        sql = f"""
-            INSERT INTO traffic_information (
-                road_name,
-                road_type,
-                link_id,
-                speed,
-                travel_time,
-                traffic_status,
-                latitude,
-                longitude,
-                collected_at
-            )
-            VALUES
-                {", ".join(value_placeholders)}
-            ON CONFLICT (link_id, collected_at)
-            DO UPDATE SET
-                road_name = EXCLUDED.road_name,
-                road_type = EXCLUDED.road_type,
-                speed = EXCLUDED.speed,
-                travel_time = EXCLUDED.travel_time,
-                traffic_status = EXCLUDED.traffic_status,
-                latitude = EXCLUDED.latitude,
-                longitude = EXCLUDED.longitude
-        """
-
-        cursor.execute(
-            sql,
-            query_parameters
-        )
-
-        print(
-            f"{min(end_index, len(traffic_information_list))}"
-            f"/{len(traffic_information_list)}건 처리"
-        )
-
-    connection.commit()
-
-    cursor.close()
-    connection.close()
-
-    print(
-        f"{len(traffic_information_list)}건의 교통정보를 저장했습니다."
-    )
+    try:
+        with get_database_connection() as conn:
+            with conn.cursor() as cur:
+                cur.executemany(insert_query, traffic_list)
+                conn.commit()
+                logger.info("Supabase DB에 %d건의 교통정보 저장 완료", len(traffic_list))
+    except psycopg.OperationalError as e:
+        logger.error("DB 연결 실패 - .env 호스트/비밀번호 정보 또는 인터넷 연결을 확인하세요: %s", e)
+    except Exception as e:
+        logger.error("교통정보 DB 저장 중 오류 발생: %s", e)

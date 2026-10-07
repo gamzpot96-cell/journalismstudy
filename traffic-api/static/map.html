@@ -2,9 +2,7 @@
 <html lang="ko">
 
 <head>
-
     <meta charset="utf-8">
-
     <title>ITS 실시간 교통정보 지도</title>
 
     <link
@@ -12,13 +10,9 @@
         href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/css/ol.css"
         type="text/css"
     >
-
-    <script
-        src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/build/ol.js">
-    </script>
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/build/ol.js"></script>
 
     <style>
-
         body {
             margin: 0;
             font-family: Arial, "Noto Sans KR", sans-serif;
@@ -29,112 +23,143 @@
             margin: 0;
             background-color: #1f2937;
             color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-link {
+            color: #60a5fa;
+            text-decoration: none;
+            font-size: 14px;
         }
 
         #map {
             width: 100%;
             height: calc(100vh - 60px);
         }
-        #trafficButton {
-        position: absolute;
-        top: 75px;
-        left: 20px;
-        z-index: 1000;
 
-        padding: 10px 15px;
-        border: none;
-        border-radius: 5px;
+        .control-box {
+            position: absolute;
+            top: 75px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
 
-        background-color: white;
-        cursor: pointer;
-    }
+        .btn {
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* 팝업 스타일 */
+        .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 150px;
+        }
     </style>
-
 </head>
-
 
 <body>
 
-    <h2>🚗 ITS 실시간 교통정보 지도</h2>
+    <h2>
+        <span>🚗 ITS 실시간 교통정보 지도</span>
+        <a href="/" class="header-link">목록으로 이동 ➔</a>
+    </h2>
 
-    <!-- 교통정보 표시 버튼 -->
-    <button id="trafficButton">
-        교통정보 켜기
-    </button>
+    <!-- 상단 컨트롤 버튼 그룹 -->
+    <div class="control-box">
+        <button id="trafficTileBtn" class="btn">교통정보 레이어 켜기</button>
+        <button id="fetchTrafficDataBtn" class="btn">현재 화면 영역 정보 조회</button>
+    </div>
 
     <div id="map"></div>
 
     <script>
-        // 기본 지도 생성
+        // 1. 기본 지도 생성
         const map = new ol.Map({
             target: "map",
-
             layers: [
                 new ol.layer.Tile({
                     source: new ol.source.OSM()
                 })
             ],
-
             view: new ol.View({
                 projection: "EPSG:3857",
-                center: ol.proj.fromLonLat([
-                    127.766922,
-                    35.907757
-                ]),
-                zoom: 7,
-                maxZoom: 15,
+                center: ol.proj.fromLonLat([126.9780, 37.5665]), // 서울 중심 좌표
+                zoom: 12,
+                maxZoom: 18,
                 minZoom: 7
             })
         });
 
-
-        // ITS 교통정보 타일 레이어
+        // 2. ITS 교통정보 타일 레이어 (WMTS)
         const trafficTileLayer = new ol.layer.Tile({
             source: new ol.source.XYZ({
-                url:
-                    "https://its.go.kr:9443/geoserver/gwc/service/wmts/rest/" +
-                    "ntic:N_LEVEL_{z}/" +
-                    "ntic:REALTIME/" +
-                    "EPSG:3857/" +
-                    "EPSG:3857:{z}/{y}/{x}" +
-                    "?format=image/png8"
+                url: "https://its.go.kr:9443/geoserver/gwc/service/wmts/rest/" +
+                     "ntic:N_LEVEL_{z}/" +
+                     "ntic:REALTIME/" +
+                     "EPSG:3857/" +
+                     "EPSG:3857:{z}/{y}/{x}" +
+                     "?format=image/png8"
             }),
-
-            // 처음에는 교통정보를 표시하지 않음
             visible: false
         });
-
-
-        // 지도에 교통정보 레이어 추가
         map.addLayer(trafficTileLayer);
 
-
-        // 버튼 가져오기
-        const trafficButton =
-            document.getElementById("trafficButton");
-
-
-        // 버튼을 클릭하면 교통정보를 켜고 끔
-        trafficButton.addEventListener("click", function () {
-
-            const currentVisible =
-                trafficTileLayer.getVisible();
-
+        // 3. 교통정보 타일 켜기/끄기 이벤트
+        const trafficTileBtn = document.getElementById("trafficTileBtn");
+        trafficTileBtn.addEventListener("click", function () {
+            const currentVisible = trafficTileLayer.getVisible();
             trafficTileLayer.setVisible(!currentVisible);
+            trafficTileBtn.textContent = currentVisible ? "교통정보 레이어 켜기" : "교통정보 레이어 끄기";
+        });
 
+        // 4. 현재 지도의 바운딩 박스(경도/위도)를 계산하여 백엔드로 요청
+        const fetchTrafficDataBtn = document.getElementById("fetchTrafficDataBtn");
+        fetchTrafficDataBtn.addEventListener("click", async function () {
+            // EPSG:3857 좌표계를 위경도(EPSG:4326)로 변환
+            const extent = map.getView().calculateExtent(map.getSize());
+            const minCoord = ol.proj.toLonLat([extent[0], extent[1]]);
+            const maxCoord = ol.proj.toLonLat([extent[2], extent[3]]);
 
-            if (currentVisible) {
-                trafficButton.textContent =
-                    "교통정보 켜기";
-            } else {
-                trafficButton.textContent =
-                    "교통정보 끄기";
+            const minX = minCoord[0].toFixed(4);
+            const minY = minCoord[1].toFixed(4);
+            const maxX = maxCoord[0].toFixed(4);
+            const maxY = maxCoord[1].toFixed(4);
+
+            alert(`현재 지도 영역의 교통정보를 수집합니다.\n경도: ${minX}~${maxX}\n위도: ${minY}~${maxY}`);
+
+            try {
+                const response = await fetch(`/traffic?min_x=${minX}&max_x=${maxX}&min_y=${minY}&max_y=${maxY}`);
+                if (!response.ok) throw new Error("데이터 조회 실패");
+
+                const result = await response.json();
+                const itemCount = result?.body?.items?.length || 0;
+                alert(`조회 완료! 수집된 구간 수: ${itemCount}건`);
+            } catch (err) {
+                alert("교통정보 조회 중 오류가 발생했습니다.");
+                console.error(err);
             }
-
         });
     </script>
 
 </body>
-
-
 </html>

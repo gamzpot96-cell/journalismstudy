@@ -19,7 +19,7 @@ load_dotenv()
 
 # ITS API 설정
 ITS_API_KEY = os.getenv("ITS_API_KEY")
-ITS_API_URL = "http://openapi.its.go.kr/trafficInfo"
+ITS_API_URL = "https://openapi.its.go.kr:9443/trafficInfo"
 
 
 async def get_traffic_information(
@@ -31,7 +31,6 @@ async def get_traffic_information(
     """ITS 교통정보 API를 호출하고 응답을 반환합니다."""
 
     # API Key가 존재하는지만 확인합니다.
-    # 실제 API Key 값은 로그에 출력하지 않습니다.
     if not ITS_API_KEY:
         logger.error("ITS_API_KEY 존재 여부: False")
         raise ValueError("ITS_API_KEY가 설정되지 않았습니다.")
@@ -62,11 +61,17 @@ async def get_traffic_information(
     logger.info("요청 파라미터: %s", log_parameters)
 
     try:
+        # 브라우저 요청처럼 보이기 위한 헤더 설정
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+
         # ITS API 서버에 요청합니다.
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
             response = await client.get(
                 ITS_API_URL,
-                params=request_parameters
+                params=request_parameters,
+                headers=headers
             )
 
         # HTTP 응답 정보 기록
