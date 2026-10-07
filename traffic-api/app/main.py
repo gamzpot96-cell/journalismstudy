@@ -103,11 +103,19 @@ async def traffic(
 
         return traffic_data
 
+    # app/main.py 내 /traffic 라우트의 except 블록 부분
+
     except Exception as e:
-        logger.warning("ITS API 타임아웃 발생 -> Supabase DB 최신 데이터로 대체 반환: %s", e)
+        logger.warning("ITS API 타임아웃 발생 -> Supabase DB 해당 위치 최신 데이터로 대체 반환: %s", e)
         
-        # 4. ITS API 실패 시 Supabase DB에서 최신 저장 데이터 조회하여 반환
-        db_items = get_recent_traffic_list(limit=200)
+        # ITS API 실패 시, 클라이언트가 요청한 좌표 영역(min_x, max_x, min_y, max_y)에 해당하는 DB 데이터 반환
+        db_items = get_recent_traffic_list(
+            min_x=min_x,
+            max_x=max_x,
+            min_y=min_y,
+            max_y=max_y,
+            limit=200
+        )
         
         return {
             "header": {

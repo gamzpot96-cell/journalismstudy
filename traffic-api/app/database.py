@@ -79,21 +79,36 @@ def save_traffic_information_list(traffic_list):
         logger.error("교통정보 DB 저장 중 오류 발생: %s", e)
 
 
-def get_recent_traffic_list(limit: int = 200):
+def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: float = None, max_y: float = None, limit: int = 200):
     """
-    ITS API 타임아웃 발생 시 백업용으로 Supabase DB에서 최신 교통정보 데이터를 조회합니다.
+    ITS API 타임아웃 발생 시 백업용으로 Supabase DB에서
+    해당 좌표 범위 내의 최신 교통정보 데이터를 조회합니다.
     """
-    select_query = """
-    SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
-    FROM traffic_information
-    ORDER BY traffic_id DESC
-    LIMIT %s;
-    """
+    # 좌표 조건이 모두 전달된 경우 범위 쿼리 적용, 없으면 전체 최신 쿼리 적용
+    if all(v is not None for v in [min_x, max_x, min_y, max_y]):
+        select_query = """
+        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
+        FROM traffic_information
+        WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
+           OR (longitude IS NULL OR latitude IS NULL)  -- 좌표가 없는 과거 데이터 호환성 보장
+        ORDER BY traffic_id DESC
+        LIMIT %s;
+        """
+        params = (min_x, max_x, min_y, max_y, limit)
+    else:
+        select_query = """
+        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
+        FROM traffic_information
+        ORDER BY traffic_id DESC
+        LIMIT %s;
+        """
+        params = (limit,)
+
     traffic_items = []
     try:
         with get_database_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(select_query, (limit,))
+                cur.execute(select_query, params)
                 rows = cur.fetchall()
                 for row in rows:
                     traffic_items.append({
