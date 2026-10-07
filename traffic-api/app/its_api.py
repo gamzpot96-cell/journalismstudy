@@ -4,7 +4,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ITS API Key 가져오기
 ITS_API_KEY = os.getenv("ITS_API_KEY")
 ITS_BASE_URL = "https://openapi.its.go.kr:9443/trafficInfo"
 
@@ -16,24 +15,21 @@ async def get_traffic_information(
     max_y: float,
     type_val: str = "all"
 ):
-    """
-    ITS 국가교통정보센터 API를 호출하여 해당 Bounding Box 범위 내의 교통소통정보를 가져옵니다.
-    """
     if not ITS_API_KEY:
         logger.error("ITS_API_KEY 환경변수가 설정되지 않았습니다.")
         raise ValueError("ITS_API_KEY가 존재하지 않습니다.")
 
+    # ITS Open API 필수 파라미터 매핑
     params = {
-        "apiKey": ITS_API_KEY,
+        "apiKey": ITS_API_KEY.strip(),
         "type": type_val,
         "getType": "json",
-        "minX": min_x,
-        "maxX": max_x,
-        "minY": min_y,
-        "maxY": max_y
+        "minX": str(min_x),
+        "maxX": str(max_x),
+        "minY": str(min_y),
+        "maxY": str(max_y)
     }
 
-    # Vercel 서버리스 타임아웃 방지를 위해 timeout을 5초로 설정
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -53,5 +49,5 @@ async def get_traffic_information(
             raise Exception(f"ITS API HTTP 에러: {exc.response.status_code}")
 
         except Exception as exc:
-            logger.error("ITS API호출 중 예외 발생: %s", exc)
+            logger.error("ITS API 호출 중 예외 발생: %s", exc)
             raise exc
