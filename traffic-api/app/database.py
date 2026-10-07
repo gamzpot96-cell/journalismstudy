@@ -1,3 +1,4 @@
+# app/database.py
 import os
 import logging
 import psycopg
@@ -9,20 +10,23 @@ def get_database_connection():
     """
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
+    # 5432 대신 Transaction Pooler 포트인 6543을 기본값으로 권장합니다.
+    port = os.getenv("POSTGRES_PORT", "6543")
+    
     return psycopg.connect(
         host=os.getenv("POSTGRES_HOST"),
-        port=os.getenv("POSTGRES_PORT", "5432"),
+        port=port,
         user=os.getenv("POSTGRES_USER"),
         password=os.getenv("POSTGRES_PASSWORD"),
         dbname=os.getenv("POSTGRES_DB", "postgres"),
-        sslmode=os.getenv("POSTGRES_SSLMODE", "require")
+        sslmode=os.getenv("POSTGRES_SSLMODE", "require"),
+        connect_timeout=10
     )
 
 
 def create_traffic_table():
     """
     traffic_information 테이블이 없을 경우 생성합니다.
-    (앱 시작 시 또는 필요할 때 호출)
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS traffic_information (

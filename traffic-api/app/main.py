@@ -1,12 +1,12 @@
+# app/main.py
 import logging
-import socket
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
 
 from app.its_api import get_traffic_information
-from app.database import save_traffic_information_list
+from app.database import save_traffic_information_list, create_traffic_table
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,15 @@ app = FastAPI(
     description="FastAPI를 이용한 ITS 교통소통정보 API 예제",
     version="1.0.0"
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 Supabase DB 테이블 확인 및 생성"""
+    try:
+        create_traffic_table()
+    except Exception as e:
+        logger.error("Startup DB 초기화 실패: %s", e)
 
 
 @app.get("/")
