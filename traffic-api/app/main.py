@@ -53,15 +53,14 @@ async def traffic(
             max_y=max_y
         )
 
-        traffic_items = traffic_data.get("body", {}).get("items", [])
-
-        logger.info("ITS에서 받은 교통정보 개수: %d", len(traffic_items))
+# app/main.py 중 traffic 함수 내부
 
         # 2. DB 저장용 데이터 변환
         traffic_information_list = []
         for traffic_item in traffic_items:
             road_name = traffic_item.get("roadName")
-            road_type = traffic_item.get("roadDrcType")
+            # roadDrcType이 None이거나 비어있을 경우 '일반' 또는 '미지정'으로 기본값 처리
+            road_type = traffic_item.get("roadDrcType") or "일반"
             link_id = traffic_item.get("linkId")
             speed = int(float(traffic_item.get("speed", 0)))
             travel_time = float(traffic_item.get("travelTime", 0))
