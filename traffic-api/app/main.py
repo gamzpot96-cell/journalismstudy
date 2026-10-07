@@ -1,5 +1,5 @@
 import logging
-
+import socket
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
@@ -35,6 +35,47 @@ async def map_page():
 # --------------------------------------------------
 # 교통정보 API
 # --------------------------------------------------
+
+@app.get("/test-its-connection")
+async def test_its_connection():
+    """
+    Vercel 서버에서 ITS API 서버의
+    9443 포트에 연결할 수 있는지 테스트합니다.
+    """
+
+    host = "openapi.its.go.kr"
+    port = 9443
+
+    try:
+        ip_address = socket.gethostbyname(host)
+
+        print("ITS 서버 IP:", ip_address)
+        print("ITS 서버 포트:", port)
+
+        connection = socket.create_connection(
+            (host, port),
+            timeout=10
+        )
+
+        connection.close()
+
+        return {
+            "success": True,
+            "message": "ITS 서버의 9443 포트에 연결할 수 있습니다.",
+            "host": host,
+            "port": port
+        }
+
+    except Exception as error:
+        print("ITS 서버 연결 테스트 실패:", error)
+
+        return {
+            "success": False,
+            "message": "ITS 서버의 9443 포트에 연결할 수 없습니다.",
+            "host": host,
+            "port": port,
+            "error": str(error)
+        }
 
 @app.get("/traffic")
 async def traffic(
