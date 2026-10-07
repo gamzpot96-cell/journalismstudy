@@ -1,145 +1,188 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 교통 정보 지도</title>
+    <meta charset="utf-8">
+    <title>ITS 실시간 교통정보 지도</title>
+
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/css/ol.css"
+        type="text/css"
+    >
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.9.0/build/ol.js"></script>
+
     <style>
-        html, body {
-            width: 100%;
-            height: 100%;
+        body {
             margin: 0;
-            padding: 0;
-            font-family: sans-serif;
+            font-family: Arial, "Noto Sans KR", sans-serif;
         }
+
+        h2 {
+            padding: 15px 20px;
+            margin: 0;
+            background-color: #1f2937;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-link {
+            color: #60a5fa;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
         #map {
             width: 100%;
-            height: 100%;
+            height: calc(100vh - 60px);
         }
-        .info-panel {
+
+        .control-box {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 10;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px 20px;
+            top: 75px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            background-color: #f3f4f6;
+        }
+
+        .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            padding: 12px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .info-panel h3 {
-            margin: 0 0 8px 0;
-            font-size: 16px;
-        }
-        .status-text {
-            font-size: 13px;
-            color: #555;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 150px;
         }
     </style>
-    <!-- 카카오 지도 API (발급받은 JavaScript 키 필요) -->
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=5a12aa456d25b739c3d7dd555e2f20d0"></script>
 </head>
+
 <body>
 
-<div class="info-panel">
-    <h3 id="locationTitle">실시간 교통 정보</h3>
-    <div id="statusText" class="status-text">데이터를 불러오는 중입니다...</div>
-</div>
+    <h2>
+        <span>🚗 ITS 실시간 교통정보 지도</span>
+        <a href="/" class="header-link">목록으로 이동 ➔</a>
+    </h2>
 
-<div id="map"></div>
+    <div class="control-box">
+        <input type="text" id="mapSearchInput" placeholder="동네 이름 (예: 인사동)" style="padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+        <button id="searchMapBtn" class="btn">동네 이동 및 조회</button>
+        <button id="trafficTileBtn" class="btn">교통정보 레이어 켜기</button>
+        <button id="fetchTrafficDataBtn" class="btn">현재 화면 영역 정보 조회</button>
+    </div>
 
-<script>
-    // ITS 공공데이터 포털 인증키
-    const ITS_API_KEY = "35f5f4dfde954c2eb6bcc28f4925d626"; // 실제 키로 교체 필요
-    let map = null;
+    <div id="map"></div>
 
-    window.addEventListener("DOMContentLoaded", () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const minX = urlParams.get("minX");
-        const maxX = urlParams.get("maxX");
-        const minY = urlParams.get("minY");
-        const maxY = urlParams.get("maxY");
-        const cx = parseFloat(urlParams.get("cx") || "126.998");
-        const cy = parseFloat(urlParams.get("cy") || "37.586");
-        const locName = urlParams.get("loc") || "선택 지역";
+    <script>
+        // 1. 기본 지도 생성
+        const map = new ol.Map({
+            target: "map",
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM()
+                })
+            ],
+            view: new ol.View({
+                projection: "EPSG:3857",
+                center: ol.proj.fromLonLat([126.9780, 37.5665]), // 서울 중심 좌표
+                zoom: 12,
+                maxZoom: 18,
+                minZoom: 7
+            })
+        });
 
-        document.getElementById("locationTitle").innerText = `${locName} 실시간 교통 정보`;
+        // 2. ITS 교통정보 타일 레이어 (WMTS)
+        const trafficTileLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: "https://its.go.kr:9443/geoserver/gwc/service/wmts/rest/" +
+                     "ntic:N_LEVEL_{z}/" +
+                     "ntic:REALTIME/" +
+                     "EPSG:3857/" +
+                     "EPSG:3857:{z}/{y}/{x}" +
+                     "?format=image/png8"
+            }),
+            visible: false
+        });
+        map.addLayer(trafficTileLayer);
 
-        // 1. 지도 초기화
-        initMap(cx, cy);
+        // 3. 교통정보 타일 켜기/끄기 이벤트
+        const trafficTileBtn = document.getElementById("trafficTileBtn");
+        trafficTileBtn.addEventListener("click", function () {
+            const currentVisible = trafficTileLayer.getVisible();
+            trafficTileLayer.setVisible(!currentVisible);
+            trafficTileBtn.textContent = currentVisible ? "교통정보 레이어 켜기" : "교통정보 레이어 끄기";
+        });
 
-        // 2. 파라미터가 유효하면 ITS API를 브라우저에서 직접 호출
-        if (minX && maxX && minY && maxY) {
-            fetchTrafficDirectly(minX, maxX, minY, maxY);
-        } else {
-            document.getElementById("statusText").innerText = "좌표 정보가 존재하지 않습니다.";
-        }
-    });
+        // 4. 현재 지도의 바운딩 박스를 계산하여 백엔드로 요청
+        const fetchTrafficDataBtn = document.getElementById("fetchTrafficDataBtn");
+        fetchTrafficDataBtn.addEventListener("click", async function () {
+            const extent = map.getView().calculateExtent(map.getSize());
+            const minCoord = ol.proj.toLonLat([extent[0], extent[1]]);
+            const maxCoord = ol.proj.toLonLat([extent[2], extent[3]]);
 
-    // 카카오 지도 생성 함수
-    function initMap(cx, cy) {
-        const container = document.getElementById('map');
-        const options = {
-            center: new kakao.maps.LatLng(cy, cx),
-            level: 5
-        };
-        map = new kakao.maps.Map(container, options);
-    }
+            const minX = minCoord[0].toFixed(4);
+            const minY = minCoord[1].toFixed(4);
+            const maxX = maxCoord[0].toFixed(4);
+            const maxY = maxCoord[1].toFixed(4);
 
-    // 3. 브라우저 단에서 ITS API 직접 호출 (Vercel IP 차단 우회)
-    async function fetchTrafficDirectly(minX, maxX, minY, maxY) {
-        const url = new URL("https://openapi.its.go.kr/api/NTrafficInfo");
-        url.searchParams.append("apiKey", ITS_API_KEY);
-        url.searchParams.append("type", "all");
-        url.searchParams.append("getType", "json");
-        url.searchParams.append("minX", minX);
-        url.searchParams.append("maxX", maxX);
-        url.searchParams.append("minY", minY);
-        url.searchParams.append("maxY", maxY);
+            alert(`현재 지도 영역의 교통정보를 수집합니다.\n경도: ${minX}~${maxX}\n위도: ${minY}~${maxY}`);
 
-        try {
-            const response = await fetch(url.toString());
-            if (!response.ok) {
-                throw new Error(`ITS API HTTP 오류 상태코드: ${response.status}`);
+            try {
+                const response = await fetch(`/traffic?min_x=${minX}&max_x=${maxX}&min_y=${minY}&max_y=${maxY}`);
+                if (!response.ok) throw new Error("데이터 조회 실패");
+
+                const result = await response.json();
+                const itemCount = result?.body?.items?.length || 0;
+                alert(`조회 완료! 수집된 구간 수: ${itemCount}건`);
+            } catch (err) {
+                alert("교통정보 조회 중 오류가 발생했습니다.");
+                console.error(err);
             }
+        });
 
-            const trafficData = await response.json();
-            const items = trafficData?.body?.items || [];
-
-            console.log(`[ITS API 직접호출 성공] 데이터 개수: ${items.length}개`);
-            document.getElementById("statusText").innerText = `조회 완료 (도로 구간: ${items.length}개)`;
-
-            if (items.length === 0) {
-                alert("해당 범위 내에 조회된 실시간 교통정보가 없습니다.");
+        // 5. 동네 이름으로 검색하여 지도 조회
+        const searchMapBtn = document.getElementById("searchMapBtn");
+        searchMapBtn.addEventListener("click", async function () {
+            const location = document.getElementById("mapSearchInput").value;
+            if (!location) {
+                alert("동네 이름을 입력해주세요.");
                 return;
             }
 
-            // 4. 지도에 수집한 교통정보 그리기
-            renderTrafficOnMap(items);
+            try {
+                const response = await fetch(`/traffic/search?location=${encodeURIComponent(location)}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "검색 실패");
+                }
 
-        } catch (error) {
-            console.error("ITS API 직접 호출 실패:", error);
-            document.getElementById("statusText").innerText = "ITS API 연결 실패";
-            alert("교통정보를 불러오는 데 실패했습니다. (ITS API Key 및 네트워크 상태를 확인하세요)");
-        }
-    }
-
-    // 지도 데이터 렌더링 함수
-    function renderTrafficOnMap(items) {
-        items.forEach(item => {
-            const roadName = item.roadName;
-            const speed = parseFloat(item.speed || 0);
-
-            // 속도별 구간 상태 파악
-            let status = "정체";
-            if (speed >= 60) status = "원활";
-            else if (speed >= 30) status = "서행";
-
-            console.log(`[도로명]: ${roadName} | [속도]: ${speed}km/h | [상태]: ${status}`);
-            
-            // 기존 구현해 두신 Polyline 선 그리기 로직이 있다면 이 위치에 결합하시면 됩니다.
+                const result = await response.json();
+                const itemCount = result?.body?.items?.length || 0;
+                alert(`'${location}' 주변 교통정보 조회가 완료되었습니다! (수집 건수: ${itemCount}건)`);
+            } catch (err) {
+                alert("오류: " + err.message);
+            }
         });
-    }
-</script>
+    </script>
 
 </body>
 </html>

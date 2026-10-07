@@ -1,108 +1,445 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 교통정보 검색</title>
+    <title>ITS 실시간 교통정보</title>
+
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f5f5f5;
-        }
-        .search-container {
-            background: #ffffff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center;
-            width: 320px;
-        }
-        h2 {
-            margin-bottom: 20px;
-            color: #333;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+        * {
             box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, "Noto Sans KR", sans-serif;
+            background-color: #f4f6f8;
+            color: #222;
+        }
+
+        header {
+            background-color: #1f2937;
+            color: white;
+            padding: 25px 20px;
+        }
+
+        .header-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+        }
+
+        .header-content p {
+            margin: 0;
+            color: #d1d5db;
+        }
+
+        .map-link-btn {
+            display: inline-block;
+            background-color: #059669;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+        }
+
+        .map-link-btn:hover {
+            background-color: #047857;
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .search-box {
+            background-color: white;
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 24px;
+        }
+
+        .search-box h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
             font-size: 14px;
         }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #007bff;
-            color: white;
+
+        .search-button {
+            padding: 11px 20px;
             border: none;
             border-radius: 6px;
-            font-size: 16px;
+            background-color: #2563eb;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
             cursor: pointer;
-            transition: background-color 0.2s;
         }
-        button:hover {
-            background-color: #0056b3;
+
+        .search-button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .status-message {
+            display: none;
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .error-message {
+            display: none;
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            background-color: #fef2f2;
+            color: #dc2626;
+        }
+
+        .result-box {
+            background-color: white;
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .result-header h2 {
+            margin: 0;
+        }
+
+        .result-count {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .traffic-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .traffic-table th {
+            padding: 14px;
+            background-color: #f3f4f6;
+            border-bottom: 2px solid #d1d5db;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .traffic-table td {
+            padding: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        .traffic-table tr:hover {
+            background-color: #f9fafb;
+        }
+
+        .traffic-good {
+            color: #16a34a;
+            font-weight: bold;
+        }
+
+        .traffic-normal {
+            color: #d97706;
+            font-weight: bold;
+        }
+
+        .traffic-slow {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .empty-message {
+            padding: 50px 20px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        @media (max-width: 800px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .search-form {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .search-form {
+                grid-template-columns: 1fr;
+            }
+
+            .traffic-table {
+                font-size: 12px;
+            }
+
+            .traffic-table th,
+            .traffic-table td {
+                padding: 8px;
+            }
         }
     </style>
 </head>
+
 <body>
 
-<div class="search-container">
-    <h2>교통정보 위치 검색</h2>
-    <form onsubmit="handleSearch(event)">
-        <input type="text" id="locationInput" placeholder="동네 이름을 입력하세요 (예: 혜화동)" required>
-        <button type="submit">교통정보 보기</button>
-    </form>
-</div>
+    <header>
+        <div class="header-content">
+            <div>
+                <h1>🚗 실시간 교통정보</h1>
+                <p>ITS 국가교통정보센터 API를 이용한 교통정보 조회 서비스</p>
+            </div>
+            <a href="/map" class="map-link-btn">🗺️ 실시간 교통 지도 보러가기</a>
+        </div>
+    </header>
 
-<script>
-    async function handleSearch(event) {
-        event.preventDefault();
+    <main>
 
-        const locationInput = document.getElementById("locationInput").value.trim();
-        if (!locationInput) {
-            alert("검색할 동네 이름을 입력해주세요.");
-            return;
-        }
+        <!-- 1. 동네 이름 검색 영역 -->
+        <section class="search-box">
+            <h2>동네 이름으로 교통정보 조회</h2>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="locationInput" placeholder="예: 인사동, 종로구, 혜화동" style="flex: 1; padding: 11px; border: 1px solid #d1d5db; border-radius: 6px;">
+                <button type="button" class="search-button" onclick="searchTrafficByLocation()">동네 검색</button>
+            </div>
+        </section>
 
-        try {
-            // 1. 백엔드에서 카카오 좌표 범위(BBOX) 수신
-            const res = await fetch(`/traffic/search?location=${encodeURIComponent(locationInput)}`);
-            if (!res.ok) {
-                const errorData = await res.json();
-                alert(errorData.detail || "위치 검색에 실패했습니다.");
+        <!-- 2. 좌표 범위 검색 영역 -->
+        <section class="search-box">
+            <h2>좌표 범위로 조회</h2>
+
+            <div class="search-form">
+                <div class="input-group">
+                    <label for="minX">최소 경도</label>
+                    <input type="number" id="minX" value="126.8" step="0.001">
+                </div>
+
+                <div class="input-group">
+                    <label for="maxX">최대 경도</label>
+                    <input type="number" id="maxX" value="127.0" step="0.001">
+                </div>
+
+                <div class="input-group">
+                    <label for="minY">최소 위도</label>
+                    <input type="number" id="minY" value="37.4" step="0.001">
+                </div>
+
+                <div class="input-group">
+                    <label for="maxY">최대 위도</label>
+                    <input type="number" id="maxY" value="37.6" step="0.001">
+                </div>
+
+                <button type="button" class="search-button" onclick="searchTraffic()">조회</button>
+            </div>
+
+            <div id="statusMessage" class="status-message">
+                교통정보를 조회하고 있습니다...
+            </div>
+
+            <div id="errorMessage" class="error-message"></div>
+        </section>
+
+        <!-- 3. 결과 테이블 영역 -->
+        <section class="result-box">
+            <div class="result-header">
+                <h2>교통정보</h2>
+                <span id="resultCount" class="result-count">조회 결과 없음</span>
+            </div>
+
+            <table class="traffic-table">
+                <thead>
+                    <tr>
+                        <th>도로명</th>
+                        <th>현재 속도</th>
+                        <th>통행시간</th>
+                        <th>교통 상태</th>
+                        <th>업데이트</th>
+                    </tr>
+                </thead>
+                <tbody id="trafficTableBody">
+                    <tr>
+                        <td colspan="5" class="empty-message">
+                            조회 버튼을 눌러 교통정보를 확인하세요.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+    </main>
+
+    <script>
+        const API_URL = "/traffic";
+
+        // 동네 이름 검색 함수
+        async function searchTrafficByLocation() {
+            const location = document.getElementById("locationInput").value;
+            if (!location) {
+                alert("검색할 동네 이름을 입력하세요.");
                 return;
             }
 
-            const data = await res.json();
-            const bbox = data.bbox;
-            const center = data.center;
+            const statusMessage = document.getElementById("statusMessage");
+            const errorMessage = document.getElementById("errorMessage");
 
-            // 2. 검색된 BBOX 및 중심 좌표 파라미터를 들고 map.html로 이동
-            const queryParams = new URLSearchParams({
-                minX: bbox.minX,
-                maxX: bbox.maxX,
-                minY: bbox.minY,
-                maxY: bbox.maxY,
-                cx: center.x,
-                cy: center.y,
-                loc: data.location
-            });
+            errorMessage.style.display = "none";
+            statusMessage.style.display = "block";
 
-            window.location.href = `/map?${queryParams.toString()}`;
+            try {
+                const requestUrl = `/traffic/search?location=${encodeURIComponent(location)}`;
+                const response = await fetch(requestUrl);
 
-        } catch (err) {
-            console.error("검색 중 오류 발생:", err);
-            alert("검색 요청 처리 중 오류가 발생했습니다.");
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || "교통정보를 가져오지 못했습니다.");
+                }
+
+                const trafficData = await response.json();
+                displayTrafficData(trafficData);
+
+            } catch (error) {
+                errorMessage.textContent = "오류가 발생했습니다: " + error.message;
+                errorMessage.style.display = "block";
+            } finally {
+                statusMessage.style.display = "none";
+            }
         }
-    }
-</script>
+
+        // 좌표 범위 검색 함수
+        async function searchTraffic() {
+            const minX = document.getElementById("minX").value;
+            const maxX = document.getElementById("maxX").value;
+            const minY = document.getElementById("minY").value;
+            const maxY = document.getElementById("maxY").value;
+
+            const statusMessage = document.getElementById("statusMessage");
+            const errorMessage = document.getElementById("errorMessage");
+
+            errorMessage.style.display = "none";
+            statusMessage.style.display = "block";
+
+            try {
+                const requestUrl = `${API_URL}?min_x=${minX}&max_x=${maxX}&min_y=${minY}&max_y=${maxY}`;
+                const response = await fetch(requestUrl);
+
+                if (!response.ok) {
+                    throw new Error("교통정보를 가져오지 못했습니다.");
+                }
+
+                const trafficData = await response.json();
+                displayTrafficData(trafficData);
+
+            } catch (error) {
+                errorMessage.textContent = "오류가 발생했습니다: " + error.message;
+                errorMessage.style.display = "block";
+            } finally {
+                statusMessage.style.display = "none";
+            }
+        }
+
+        // 교통 데이터 화면 출력 함수
+        function displayTrafficData(trafficData) {
+            const tableBody = document.getElementById("trafficTableBody");
+            const resultCount = document.getElementById("resultCount");
+
+            if (!trafficData.body || !trafficData.body.items) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="empty-message">조회된 교통정보가 없습니다.</td></tr>`;
+                resultCount.textContent = "조회 결과 없음";
+                return;
+            }
+
+            const trafficItems = trafficData.body.items;
+            const displayItems = trafficItems.slice(0, 50);
+
+            tableBody.innerHTML = "";
+            resultCount.textContent = `전체 ${trafficItems.length}건 중 ${displayItems.length}건 표시`;
+
+            displayItems.forEach(function (trafficItem) {
+                const row = document.createElement("tr");
+
+                const roadName = trafficItem.roadName || "-";
+                const speed = Number(trafficItem.speed || 0);
+                const travelTime = trafficItem.travelTime || "-";
+                const createdDate = trafficItem.createdDate || "-";
+
+                let trafficStatus = "";
+                let statusClass = "";
+
+                if (speed >= 60) {
+                    trafficStatus = "원활";
+                    statusClass = "traffic-good";
+                } else if (speed >= 30) {
+                    trafficStatus = "서행";
+                    statusClass = "traffic-normal";
+                } else {
+                    trafficStatus = "정체";
+                    statusClass = "traffic-slow";
+                }
+
+                row.innerHTML = `
+                    <td>${roadName}</td>
+                    <td>${speed} km/h</td>
+                    <td>${travelTime}분</td>
+                    <td class="${statusClass}">${trafficStatus}</td>
+                    <td>${createdDate}</td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
 
 </body>
+
 </html>
