@@ -48,7 +48,7 @@ def create_traffic_table():
 
 def save_traffic_information_list(traffic_list):
     if not traffic_list:
-        return
+        return 0
 
     insert_query = """
     INSERT INTO traffic_information (
@@ -59,12 +59,20 @@ def save_traffic_information_list(traffic_list):
 
     try:
         with get_database_connection() as conn:
+            # 저장 대상 식별 정보만 기록합니다. 비밀번호는 기록하지 않습니다.
+            logger.info(
+                "Supabase 저장 대상: host=%s, database=%s",
+                conn.info.host,
+                conn.info.dbname
+            )
             with conn.cursor() as cur:
                 cur.executemany(insert_query, traffic_list)
-                conn.commit()
-                logger.info("Supabase DB에 %d건의 교통정보 저장 완료", len(traffic_list))
-    except Exception as e:
-        logger.error("교통정보 DB 저장 중 오류 발생: %s", e)
+            # with 블록을 정상 종료하면 트랜잭션이 커밋됩니다.
+        logger.info("Supabase DB에 %d건의 교통정보 저장 완료", len(traffic_list))
+        return len(traffic_list)
+    except Exception:
+        logger.exception("교통정보 DB 저장 중 오류 발생")
+        raise
 
 
 def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: float = None, max_y: float = None, limit: int = 200):
