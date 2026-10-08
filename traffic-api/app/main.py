@@ -195,7 +195,7 @@ async def test_its_connection():
 
     host = "openapi.its.go.kr"
     port = 9443
-    timeout_seconds = 5.0
+    timeout_seconds = 15.0
 
     try:
         addresses = await asyncio.wait_for(
