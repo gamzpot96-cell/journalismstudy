@@ -24,7 +24,6 @@ app = FastAPI(
 # 카카오 REST API 키
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 
-
 @app.on_event("startup")
 async def startup_event():
     try:

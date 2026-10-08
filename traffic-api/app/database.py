@@ -4,7 +4,6 @@ import psycopg
 
 logger = logging.getLogger(__name__)
 
-
 def get_database_connection():
     """
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
