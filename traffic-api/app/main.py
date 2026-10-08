@@ -17,7 +17,7 @@ from app.database import (
 
 logger = logging.getLogger(__name__)
 
-# lifespan으로 DB 테이블 초기화 관리
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -35,7 +35,6 @@ app = FastAPI(
 
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 
-# 정적 파일 서빙 연결
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -88,7 +87,6 @@ async def traffic(
                 if created_date else None
             )
 
-            # 좌표 정보 추출 (ITS API 필드 호환)
             lat = float(traffic_item.get("coordY", 0)) if traffic_item.get("coordY") else None
             lng = float(traffic_item.get("coordX", 0)) if traffic_item.get("coordX") else None
 
@@ -105,15 +103,15 @@ async def traffic(
             )
             traffic_information_list.append(traffic_information)
 
-        # Vercel Serverless 환경에서는 동기로 저장을 확실히 실행
         if traffic_information_list:
             save_traffic_information_list(traffic_information_list)
 
         return traffic_data
 
     except Exception as e:
-        logger.warning("ITS API 호출 실패 -> DB 백업 데이터 반환: %s", e)
+        logger.warning("ITS API 호출 실패 -> DB 해당 위치 백업 데이터 반환: %s", e)
         
+        # ITS API 호출 실패 시 해당 좌표 영역(BBOX) 내의 DB 데이터를 조회
         db_items = get_recent_traffic_list(
             min_x=min_x,
             max_x=max_x,
@@ -135,7 +133,7 @@ async def traffic(
 
 @app.get("/traffic/search")
 async def search_traffic_by_location(
-    location: str = Query(..., description="검색할 동네 이름 (예: 인사동, 종로구, 혜화동)")
+    location: str = Query(..., description="검색할 동네 이름 (예: 인사동, 강남역, 혜화동)")
 ):
     if not KAKAO_REST_API_KEY:
         raise HTTPException(
@@ -171,11 +169,15 @@ async def search_traffic_by_location(
     center_x = float(documents[0]["x"])
     center_y = float(documents[0]["y"])
 
-    offset = 0.015
+    # 반경 범위 설정
+    offset = 0.02
     min_x = round(center_x - offset, 5)
     max_x = round(center_x + offset, 5)
     min_y = round(center_y - offset, 5)
     max_y = round(center_y + offset, 5)
+
+    logger.info("카카오 검색 [%s] -> 중심:(%f, %f), BBOX:[minX=%f, maxX=%f, minY=%f, maxY=%f]",
+                location, center_x, center_y, min_x, max_x, min_y, max_y)
 
     return await traffic(
         min_x=min_x,

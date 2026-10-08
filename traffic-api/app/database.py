@@ -8,7 +8,6 @@ def get_database_connection():
     """
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
-    # .env 파일에 설정된 포트값을 그대로 읽어오며 기본값은 5432로 설정
     port = int(os.getenv("POSTGRES_PORT", "5432"))
     
     return psycopg.connect(
@@ -69,12 +68,15 @@ def save_traffic_information_list(traffic_list):
 
 
 def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: float = None, max_y: float = None, limit: int = 200):
+    """
+    ITS API 호출 실패 시 해당 좌표 영역(min_x, max_x, min_y, max_y)에 속하는 
+    최신 교통정보 데이터만 정확히 필터링하여 반환합니다.
+    """
     if all(v is not None for v in [min_x, max_x, min_y, max_y]):
         select_query = """
         SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
         FROM traffic_information
         WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
-           OR (longitude IS NULL OR latitude IS NULL)
         ORDER BY collected_at DESC
         LIMIT %s;
         """
