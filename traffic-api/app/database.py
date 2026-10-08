@@ -75,7 +75,7 @@ def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: flo
         FROM traffic_information
         WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
            OR (longitude IS NULL OR latitude IS NULL)
-        ORDER BY traffic_id DESC
+        ORDER BY collected_at DESC
         LIMIT %s;
         """
         params = (min_x, max_x, min_y, max_y, limit)
@@ -83,7 +83,7 @@ def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: flo
         select_query = """
         SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
         FROM traffic_information
-        ORDER BY traffic_id DESC
+        ORDER BY collected_at DESC
         LIMIT %s;
         """
         params = (limit,)
