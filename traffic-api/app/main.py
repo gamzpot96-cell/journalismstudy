@@ -63,6 +63,30 @@ async def traffic(
             max_y=max_y
         )
 
+    except Exception as e:
+        logger.warning("ITS API 호출 실패 -> DB 해당 위치 백업 데이터 반환: %s", e)
+        
+        # ITS API 호출 실패 시 해당 좌표 영역(BBOX) 내의 DB 데이터를 조회
+        db_items = get_recent_traffic_list(
+            min_x=min_x,
+            max_x=max_x,
+            min_y=min_y,
+            max_y=max_y,
+            limit=200
+        )
+        
+        return {
+            "header": {
+                "resultCode": "00",
+                "resultMsg": "Supabase DB 백업 데이터 반환"
+            },
+            "body": {
+                "items": db_items
+            }
+        }
+
+
+    try:
         traffic_items = traffic_data.get("body", {}).get("items", [])
         logger.info("ITS에서 받은 교통정보 개수: %d", len(traffic_items))
 
@@ -104,32 +128,17 @@ async def traffic(
             traffic_information_list.append(traffic_information)
 
         if traffic_information_list:
-            save_traffic_information_list(traffic_information_list)
+            saved_count = save_traffic_information_list(traffic_information_list)
+            logger.info("ITS 교통정보 DB 저장 확인: %d건", saved_count)
 
         return traffic_data
 
     except Exception as e:
-        logger.warning("ITS API 호출 실패 -> DB 해당 위치 백업 데이터 반환: %s", e)
-        
-        # ITS API 호출 실패 시 해당 좌표 영역(BBOX) 내의 DB 데이터를 조회
-        db_items = get_recent_traffic_list(
-            min_x=min_x,
-            max_x=max_x,
-            min_y=min_y,
-            max_y=max_y,
-            limit=200
-        )
-        
-        return {
-            "header": {
-                "resultCode": "00",
-                "resultMsg": "Supabase DB 백업 데이터 반환"
-            },
-            "body": {
-                "items": db_items
-            }
-        }
-
+        logger.exception("ITS 응답 처리 또는 Supabase DB 저장 실패")
+        raise HTTPException(
+            status_code=500,
+            detail="교통정보 처리 또는 DB 저장 중 오류가 발생했습니다. 서버 로그를 확인해주세요."
+        ) from e
 
 @app.get("/traffic/search")
 async def search_traffic_by_location(
