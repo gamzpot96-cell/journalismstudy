@@ -8,8 +8,8 @@ def get_database_connection():
     """
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
-    # Vercel Serverless 환경 대응을 위해 Transaction Pooler 포트(6543) 사용
-    port = os.getenv("POSTGRES_PORT", "6543")
+    # .env 파일에 설정된 포트값을 그대로 읽어오며 기본값은 5432로 설정
+    port = int(os.getenv("POSTGRES_PORT", "5432"))
     
     return psycopg.connect(
         host=os.getenv("POSTGRES_HOST"),
@@ -23,9 +23,6 @@ def get_database_connection():
 
 
 def create_traffic_table():
-    """
-    traffic_information 테이블이 없을 경우 생성합니다.
-    """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS traffic_information (
         traffic_id SERIAL PRIMARY KEY,
@@ -46,16 +43,11 @@ def create_traffic_table():
                 cur.execute(create_table_query)
                 conn.commit()
                 logger.info("traffic_information 테이블 확인/생성 완료")
-    except psycopg.OperationalError as e:
-        logger.error("DB 연결 실패 (호스트 또는 네트워크 설정 점검 필요): %s", e)
     except Exception as e:
         logger.error("테이블 생성 중 오류 발생: %s", e)
 
 
 def save_traffic_information_list(traffic_list):
-    """
-    수집된 교통정보 리스트를 Supabase DB에 다량(Bulk)으로 저장합니다.
-    """
     if not traffic_list:
         return
 
@@ -72,24 +64,17 @@ def save_traffic_information_list(traffic_list):
                 cur.executemany(insert_query, traffic_list)
                 conn.commit()
                 logger.info("Supabase DB에 %d건의 교통정보 저장 완료", len(traffic_list))
-    except psycopg.OperationalError as e:
-        logger.error("DB 연결 실패 - .env 호스트/비밀번호 정보 또는 인터넷 연결을 확인하세요: %s", e)
     except Exception as e:
         logger.error("교통정보 DB 저장 중 오류 발생: %s", e)
 
 
 def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: float = None, max_y: float = None, limit: int = 200):
-    """
-    ITS API 타임아웃 발생 시 백업용으로 Supabase DB에서
-    해당 좌표 범위 내의 최신 교통정보 데이터를 조회합니다.
-    """
-    # 좌표 조건이 모두 전달된 경우 범위 쿼리 적용, 없으면 전체 최신 쿼리 적용
     if all(v is not None for v in [min_x, max_x, min_y, max_y]):
         select_query = """
         SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
         FROM traffic_information
         WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
-           OR (longitude IS NULL OR latitude IS NULL)  -- 좌표가 없는 과거 데이터 호환성 보장
+           OR (longitude IS NULL OR latitude IS NULL)
         ORDER BY traffic_id DESC
         LIMIT %s;
         """
