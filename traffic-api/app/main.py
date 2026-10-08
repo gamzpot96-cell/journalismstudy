@@ -185,3 +185,45 @@ async def search_traffic_by_location(
         min_y=min_y,
         max_y=max_y
     )
+
+@app.get("/test-its-connection")
+async def test_its_connection():
+    """Vercel 환경에서 ITS 서버의 DNS 및 TCP 연결을 진단합니다."""
+    import asyncio
+    import socket
+
+    host = "openapi.its.go.kr"
+    port = 9443
+
+    try:
+        addresses = await asyncio.wait_for(
+            asyncio.to_thread(socket.getaddrinfo, host, port, type=socket.SOCK_STREAM),
+            timeout=5.0
+        )
+    except (OSError, asyncio.TimeoutError) as exc:
+        logger.warning("ITS DNS 조회 실패: %s", exc)
+        raise HTTPException(status_code=503, detail={
+            "stage": "dns", "error_type": type(exc).__name__,
+            "message": "ITS 서버 DNS 조회 실패"
+        }) from exc
+
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=5.0
+        )
+        writer.close()
+        await writer.wait_closed()
+    except (OSError, asyncio.TimeoutError) as exc:
+        logger.warning("ITS TCP 연결 실패: %s", exc)
+        raise HTTPException(status_code=503, detail={
+            "stage": "tcp", "error_type": type(exc).__name__,
+            "message": "ITS 서버 TCP 연결 실패"
+        }) from exc
+
+    return {
+        "status": "success",
+        "message": "ITS 서버 TCP 연결 성공",
+        "host": host,
+        "port": port,
+        "dns_resolved": bool(addresses)
+    }
