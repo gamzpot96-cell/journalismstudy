@@ -1,5 +1,5 @@
 {
-  "regions": ["icn1"],
+  "regions": ["hnd1"],
   "builds": [
     {
       "src": "app/main.py",
