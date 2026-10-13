@@ -1,12 +1,16 @@
 import logging
 import os
+import math
 from datetime import datetime
 from contextlib import asynccontextmanager
+from pathlib import Path
+from datetime import timezone, timedelta
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from app.its_api import get_traffic_information
 from app.database import (
@@ -21,7 +25,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        create_traffic_table()
+        await run_in_threadpool(create_traffic_table)
     except Exception as e:
         logger.error("Startup DB 초기화 실패: %s", e)
     yield
@@ -35,26 +39,29 @@ app = FastAPI(
 
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
 async def home():
-    return FileResponse("static/index.html")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/map")
 async def map_page():
-    return FileResponse("static/map.html")
+    return FileResponse(STATIC_DIR / "map.html")
 
 
 @app.get("/traffic")
 async def traffic(
-    min_x: float = Query(..., description="최소 경도"),
-    max_x: float = Query(..., description="최대 경도"),
-    min_y: float = Query(..., description="최소 위도"),
-    max_y: float = Query(..., description="최대 위도")
+    min_x: float = Query(..., ge=-180, le=180, description="최소 경도"),
+    max_x: float = Query(..., ge=-180, le=180, description="최대 경도"),
+    min_y: float = Query(..., ge=-90, le=90, description="최소 위도"),
+    max_y: float = Query(..., ge=-90, le=90, description="최대 위도")
 ):
+    if min_x >= max_x or min_y >= max_y:
+        raise HTTPException(status_code=422, detail="최소 좌표는 최대 좌표보다 작아야 합니다.")
     try:
         traffic_data = await get_traffic_information(
             min_x=min_x,
@@ -64,16 +71,19 @@ async def traffic(
         )
 
     except Exception as e:
-        logger.warning("ITS API 호출 실패 -> DB 해당 위치 백업 데이터 반환: %s", e)
+        logger.warning("ITS API 호출 실패 (%s), 백업 조회", type(e).__name__)
         
         # ITS API 호출 실패 시 해당 좌표 영역(BBOX) 내의 DB 데이터를 조회
-        db_items = get_recent_traffic_list(
+        try:
+            db_items = await run_in_threadpool(get_recent_traffic_list,
             min_x=min_x,
             max_x=max_x,
             min_y=min_y,
             max_y=max_y,
             limit=200
-        )
+            )
+        except Exception as db_error:
+            raise HTTPException(status_code=503, detail="ITS와 백업 DB 모두 사용할 수 없습니다.") from db_error
         
         return {
             "header": {
@@ -107,8 +117,8 @@ async def traffic(
 
             created_date = traffic_item.get("createdDate")
             collected_at = (
-                datetime.strptime(created_date, "%Y%m%d%H%M%S")
-                if created_date else None
+                datetime.strptime(created_date, "%Y%m%d%H%M%S").replace(tzinfo=timezone(timedelta(hours=9)))
+                if created_date else datetime.now(timezone.utc)
             )
 
             lat = float(traffic_item.get("coordY", 0)) if traffic_item.get("coordY") else None
@@ -128,22 +138,22 @@ async def traffic(
             traffic_information_list.append(traffic_information)
 
         if traffic_information_list:
-            saved_count = save_traffic_information_list(traffic_information_list)
+            saved_count = await run_in_threadpool(save_traffic_information_list, traffic_information_list)
             logger.info("ITS 교통정보 DB 저장 확인: %d건", saved_count)
 
         return traffic_data
 
     except Exception as e:
-        logger.exception("ITS 응답 처리 또는 Supabase DB 저장 실패")
-        raise HTTPException(
-            status_code=500,
-            detail="교통정보 처리 또는 DB 저장 중 오류가 발생했습니다. 서버 로그를 확인해주세요."
-        ) from e
+        logger.warning("교통정보 백업 저장 실패 (%s)", type(e).__name__)
+        return traffic_data
 
 @app.get("/traffic/search")
 async def search_traffic_by_location(
-    location: str = Query(..., description="검색할 동네 이름 (예: 인사동, 강남역, 혜화동)")
+    location: str = Query(..., min_length=1, max_length=100, description="검색할 동네 이름 (예: 인사동, 강남역, 혜화동)")
 ):
+    location = location.strip()
+    if not location:
+        raise HTTPException(status_code=422, detail="검색어를 입력해주세요.")
     if not KAKAO_REST_API_KEY:
         raise HTTPException(
             status_code=500, 
@@ -165,18 +175,25 @@ async def search_traffic_by_location(
             res.raise_for_status()
             data = res.json()
         except httpx.HTTPStatusError as exc:
-            logger.error("카카오 API HTTP Error (%d): %s", exc.response.status_code, exc.response.text)
-            raise HTTPException(status_code=exc.response.status_code, detail=f"카카오 API 오류 ({exc.response.status_code}): Key를 확인해주세요.")
+            logger.warning("카카오 API HTTP 오류: %d", exc.response.status_code)
+            raise HTTPException(status_code=502, detail="카카오 위치 검색 서비스 오류입니다.") from exc
         except Exception as e:
-            logger.error("카카오 위치 검색 실패: %s", e)
-            raise HTTPException(status_code=500, detail="동네 위치 정보를 가져오는데 실패했습니다.")
+            logger.warning("카카오 위치 검색 실패 (%s)", type(e).__name__)
+            raise HTTPException(status_code=502, detail="동네 위치 정보를 가져오는데 실패했습니다.") from e
 
-    documents = data.get("documents", [])
+    documents = data.get("documents") if isinstance(data, dict) else None
+    if not isinstance(documents, list):
+        raise HTTPException(status_code=502, detail="카카오 응답 형식이 올바르지 않습니다.")
     if not documents:
         raise HTTPException(status_code=404, detail=f"'{location}'에 해당하는 위치를 찾을 수 없습니다.")
 
-    center_x = float(documents[0]["x"])
-    center_y = float(documents[0]["y"])
+    try:
+        center_x = float(documents[0]["x"])
+        center_y = float(documents[0]["y"])
+        if not (math.isfinite(center_x) and math.isfinite(center_y) and -179.98 <= center_x <= 179.98 and -89.98 <= center_y <= 89.98):
+            raise ValueError("Invalid coordinates")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="카카오 위치 좌표가 올바르지 않습니다.") from exc
 
     # 반경 범위 설정
     offset = 0.02
@@ -188,12 +205,13 @@ async def search_traffic_by_location(
     logger.info("카카오 검색 [%s] -> 중심:(%f, %f), BBOX:[minX=%f, maxX=%f, minY=%f, maxY=%f]",
                 location, center_x, center_y, min_x, max_x, min_y, max_y)
 
-    return await traffic(
+    result = await traffic(
         min_x=min_x,
         max_x=max_x,
         min_y=min_y,
         max_y=max_y
     )
+    return {**result, "location": {"name": location, "x": center_x, "y": center_y}}
 
 @app.get("/test-its-connection")
 async def test_its_connection():

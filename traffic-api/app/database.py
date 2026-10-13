@@ -1,6 +1,7 @@
 import os
 import logging
 import psycopg
+from datetime import timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ def create_traffic_table():
                 logger.info("traffic_information 테이블 확인/생성 완료")
     except Exception as e:
         logger.error("테이블 생성 중 오류 발생: %s", e)
+        raise
 
 
 def save_traffic_information_list(traffic_list):
@@ -82,18 +84,18 @@ def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: flo
     """
     if all(v is not None for v in [min_x, max_x, min_y, max_y]):
         select_query = """
-        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
+        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at, latitude, longitude
         FROM traffic_information
         WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
-        ORDER BY collected_at DESC
+        ORDER BY collected_at DESC NULLS LAST, traffic_id DESC
         LIMIT %s;
         """
         params = (min_x, max_x, min_y, max_y, limit)
     else:
         select_query = """
-        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at
+        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at, latitude, longitude
         FROM traffic_information
-        ORDER BY collected_at DESC
+        ORDER BY collected_at DESC NULLS LAST, traffic_id DESC
         LIMIT %s;
         """
         params = (limit,)
@@ -111,9 +113,12 @@ def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: flo
                         "linkId": row[2],
                         "speed": str(row[3]) if row[3] is not None else "0",
                         "travelTime": str(row[4]) if row[4] is not None else "0",
-                        "createdDate": row[6].strftime("%Y%m%d%H%M%S") if row[6] else ""
+                        "createdDate": row[6].astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d%H%M%S") if row[6] else "",
+                        "coordY": str(row[7]) if row[7] is not None else None,
+                        "coordX": str(row[8]) if row[8] is not None else None
                     })
     except Exception as e:
         logger.error("DB 교통정보 조회 중 오류 발생: %s", e)
+        raise
     
     return traffic_items
