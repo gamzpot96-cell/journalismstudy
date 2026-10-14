@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # .env 파일의 환경변수를 불러옵니다.
 load_dotenv()
 
+
 # ITS API 설정
 ITS_API_KEY = os.getenv("ITS_API_KEY")
 ITS_API_URL = "https://openapi.its.go.kr:9443/trafficInfo"

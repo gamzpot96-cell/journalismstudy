@@ -1,12 +1,10 @@
 import logging
 import os
 from datetime import datetime
-from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.its_api import get_traffic_information
 from app.database import (
@@ -17,25 +15,22 @@ from app.database import (
 
 logger = logging.getLogger(__name__)
 
+app = FastAPI(
+    title="ITS 교통정보 API",
+    description="FastAPI를 이용한 ITS 교통소통정보 API 예제",
+    version="1.0.0"
+)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+# 카카오 REST API 키
+KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
+
+
+@app.on_event("startup")
+async def startup_event():
     try:
         create_traffic_table()
     except Exception as e:
         logger.error("Startup DB 초기화 실패: %s", e)
-    yield
-
-app = FastAPI(
-    title="ITS 교통정보 API",
-    description="FastAPI를 이용한 ITS 교통소통정보 API 예제",
-    version="1.0.0",
-    lifespan=lifespan
-)
-
-KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")
@@ -50,6 +45,7 @@ async def map_page():
 
 @app.get("/traffic")
 async def traffic(
+    background_tasks: BackgroundTasks,
     min_x: float = Query(..., description="최소 경도"),
     max_x: float = Query(..., description="최대 경도"),
     min_y: float = Query(..., description="최소 위도"),
@@ -87,9 +83,6 @@ async def traffic(
                 if created_date else None
             )
 
-            lat = float(traffic_item.get("coordY", 0)) if traffic_item.get("coordY") else None
-            lng = float(traffic_item.get("coordX", 0)) if traffic_item.get("coordX") else None
-
             traffic_information = (
                 road_name,
                 road_type,
@@ -97,21 +90,23 @@ async def traffic(
                 speed,
                 travel_time,
                 traffic_status,
-                lat,
-                lng,
+                None,
+                None,
                 collected_at
             )
             traffic_information_list.append(traffic_information)
 
         if traffic_information_list:
-            save_traffic_information_list(traffic_information_list)
+            background_tasks.add_task(
+                save_traffic_information_list,
+                traffic_information_list
+            )
 
         return traffic_data
 
     except Exception as e:
         logger.warning("ITS API 호출 실패 -> DB 해당 위치 백업 데이터 반환: %s", e)
         
-        # ITS API 호출 실패 시 해당 좌표 영역(BBOX) 내의 DB 데이터를 조회
         db_items = get_recent_traffic_list(
             min_x=min_x,
             max_x=max_x,
@@ -133,7 +128,8 @@ async def traffic(
 
 @app.get("/traffic/search")
 async def search_traffic_by_location(
-    location: str = Query(..., description="검색할 동네 이름 (예: 인사동, 강남역, 혜화동)")
+    background_tasks: BackgroundTasks,
+    location: str = Query(..., description="검색할 동네 이름 (예: 인사동, 종로구, 혜화동)")
 ):
     if not KAKAO_REST_API_KEY:
         raise HTTPException(
@@ -141,6 +137,7 @@ async def search_traffic_by_location(
             detail="KAKAO_REST_API_KEY 환경변수가 설정되지 않았습니다."
         )
 
+    # 1. 카카오 API 헤더 설정 (KakaoAK 공백 주의)
     headers = {
         "Authorization": f"KakaoAK {KAKAO_REST_API_KEY.strip()}"
     }
@@ -166,11 +163,12 @@ async def search_traffic_by_location(
     if not documents:
         raise HTTPException(status_code=404, detail=f"'{location}'에 해당하는 위치를 찾을 수 없습니다.")
 
+    # 2. 중심 좌표 (x: 경도, y: 위도)
     center_x = float(documents[0]["x"])
     center_y = float(documents[0]["y"])
 
-    # 반경 범위 설정
-    offset = 0.02
+    # 3. 반경 1.5km 범위 오프셋 계산 (ITS API 호환을 위해 명확한 범위 지정)
+    offset = 0.015
     min_x = round(center_x - offset, 5)
     max_x = round(center_x + offset, 5)
     min_y = round(center_y - offset, 5)
@@ -180,98 +178,9 @@ async def search_traffic_by_location(
                 location, center_x, center_y, min_x, max_x, min_y, max_y)
 
     return await traffic(
+        background_tasks=background_tasks,
         min_x=min_x,
         max_x=max_x,
         min_y=min_y,
         max_y=max_y
     )
-
-@app.get("/test-its-connection")
-async def test_its_connection():
-    """ITS 서버의 DNS 및 IPv4/IPv6 주소별 TCP 연결을 진단합니다."""
-    import asyncio
-    import socket
-    import time
-
-    host = "openapi.its.go.kr"
-    port = 9443
-    timeout_seconds = 5.0
-
-    try:
-        addresses = await asyncio.wait_for(
-            asyncio.to_thread(
-                socket.getaddrinfo, host, port,
-                family=socket.AF_UNSPEC, type=socket.SOCK_STREAM
-            ),
-            timeout=timeout_seconds
-        )
-    except (OSError, asyncio.TimeoutError) as exc:
-        logger.warning("ITS DNS 조회 실패 (%s): %s", type(exc).__name__, exc)
-        raise HTTPException(status_code=503, detail={
-            "stage": "dns",
-            "error_type": type(exc).__name__,
-            "message": "ITS 서버 DNS 조회 실패"
-        }) from exc
-
-    # 중복된 IP 주소는 한 번만 테스트합니다.
-    targets = []
-    seen = set()
-    for family, _, _, _, sockaddr in addresses:
-        if family not in (socket.AF_INET, socket.AF_INET6):
-            continue
-        ip_address = sockaddr[0]
-        key = (family, ip_address)
-        if key not in seen:
-            seen.add(key)
-            targets.append((family, ip_address))
-
-    async def check_address(family, ip_address):
-        family_name = "IPv4" if family == socket.AF_INET else "IPv6"
-        started = time.monotonic()
-        writer = None
-        try:
-            # host 이름 대신 조회된 IP를 직접 지정하여 각 주소를 독립적으로 테스트합니다.
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(
-                    host=ip_address, port=port, family=family
-                ),
-                timeout=timeout_seconds
-            )
-            return {
-                "family": family_name,
-                "ip": ip_address,
-                "status": "success",
-                "elapsed_ms": round((time.monotonic() - started) * 1000, 1)
-            }
-        except (OSError, asyncio.TimeoutError) as exc:
-            logger.warning(
-                "ITS %s TCP 연결 실패 (%s): %s",
-                family_name, type(exc).__name__, exc
-            )
-            return {
-                "family": family_name,
-                "ip": ip_address,
-                "status": "failed",
-                "error_type": type(exc).__name__,
-                "elapsed_ms": round((time.monotonic() - started) * 1000, 1)
-            }
-        finally:
-            if writer is not None:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except OSError:
-                    pass
-
-    results = await asyncio.gather(
-        *(check_address(family, ip) for family, ip in targets)
-    )
-    connected = any(result["status"] == "success" for result in results)
-    return {
-        "status": "success" if connected else "failed",
-        "host": host,
-        "port": port,
-        "timeout_seconds": timeout_seconds,
-        "dns_resolved": bool(addresses),
-        "results": results
-    }
