@@ -1,133 +1,50 @@
-import os
-import logging
-import psycopg
-from datetime import timezone, timedelta
+# 🚗 ITS 실시간 교통정보 서비스 (Real-time Traffic Info Service)
 
-logger = logging.getLogger(__name__)
+ITS(국가교통정보센터) API와 카카오 Local API를 연동하여 전국 도로의 실시간 교통소통 상태를 조회하고, OpenLayers 지도로 시각화하는 FastAPI 웹 애플리케이션입니다.
 
+---
 
-def get_database_connection():
-    """
-    Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
-    """
-    # Vercel Serverless 환경 대응을 위해 Transaction Pooler 포트(6543) 사용
-    port = os.getenv("POSTGRES_PORT", "5432")
-    
-    return psycopg.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        port=port,
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD"),
-        dbname=os.getenv("POSTGRES_DB", "postgres"),
-        sslmode=os.getenv("POSTGRES_SSLMODE", "require"),
-        connect_timeout=10
-    )
+## 📌 주요 기능 (Key Features)
 
+* **동네 이름 기반 교통정보 검색**: 카카오 키워드 검색 API를 이용해 동네 이름(예: 인사동, 혜화동 등) 입력 시 해당 위치 중심의 실시간 도로 교통 데이터를 조회합니다.
+* **좌표 범위(Bounding Box) 검색**: 특정 경도·위도 범위를 지정하여 해당 구역 내 도로들의 현재 속도, 통행시간, 정체 상태를 확인합니다.
+* **인터랙티브 웹 지도 시각화**: OpenLayers 및 ITS WMTS 타일 레이어를 활용하여 실시간 지도 위에서 교통 흐름 상태를 직관적으로 파악할 수 있습니다.
+* **Supabase DB 백업 및 데이터 누적**: 조회된 교통정보 데이터를 백그라운드 작업(Background Tasks)으로 Supabase PostgreSQL에 자동 저장하며, ITS API 장애/타임아웃 발생 시 DB에 저장된 최신 백업 데이터를 대체 반환합니다.
+* **Vercel Serverless 배포 지원**: Vercel 환경에 최적화된 비동기 HTTP 요청 처리 및 타임아웃 예외 처리가 적용되어 있습니다.
 
-def create_traffic_table():
-    """
-    traffic_information 테이블이 없을 경우 생성합니다.
-    """
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS traffic_information (
-        traffic_id SERIAL PRIMARY KEY,
-        road_name VARCHAR(100),
-        road_type VARCHAR(50),
-        link_id VARCHAR(100),
-        speed NUMERIC,
-        travel_time NUMERIC,
-        traffic_status VARCHAR(20),
-        latitude DECIMAL(10, 7),
-        longitude DECIMAL(10, 7),
-        collected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    """
-    try:
-        with get_database_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(create_table_query)
-                conn.commit()
-                logger.info("traffic_information 테이블 확인/생성 완료")
-    except psycopg.OperationalError as e:
-        logger.error("DB 연결 실패 (호스트 또는 네트워크 설정 점검 필요): %s", e)
-    except Exception as e:
-        logger.error("테이블 생성 중 오류 발생: %s", e)
-        raise
+---
 
+## 🛠️ 기술 스택 (Tech Stack)
 
-def save_traffic_information_list(traffic_list):
-    """
-    수집된 교통정보 리스트를 Supabase DB에 다량(Bulk)으로 저장합니다.
-    """
-    if not traffic_list:
-        return 0
+### Backend
+* **Framework**: FastAPI (Python 3.10+)
+* **HTTP Client**: HTTPX (Async)
+* **Database**: Supabase (PostgreSQL)
+* **ORM/Driver**: psycopg2-binary
 
-    insert_query = """
-    INSERT INTO traffic_information (
-        road_name, road_type, link_id, speed, travel_time,
-        traffic_status, latitude, longitude, collected_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-    """
+### Frontend
+* **HTML5 / CSS3 / JavaScript (Vanilla JS)**
+* **Map Engine**: OpenLayers 6.x (OSM + ITS WMTS Layer)
 
-    try:
-        with get_database_connection() as conn:
-            # 저장 대상 식별 정보만 기록합니다. 비밀번호는 기록하지 않습니다.
-            logger.info(
-                "Supabase 저장 대상: host=%s, database=%s",
-                conn.info.host,
-                conn.info.dbname
-            )
-            with conn.cursor() as cur:
-                cur.executemany(insert_query, traffic_list)
-                conn.commit()
-                logger.info("Supabase DB에 %d건의 교통정보 저장 완료", len(traffic_list))
-    except Exception as e:
-        logger.error("교통정보 DB 저장 중 오류 발생: %s", e)
+### External APIs
+* **ITS 국가교통정보센터 API**: 실시간 교통소통정보 조회
+* **카카오 Local API**: 키워드 검색 기반 좌표(Geocoding) 변환
 
+### Deployment
+* **Platform**: Vercel (Serverless Function)
 
-def get_recent_traffic_list(min_x: float = None, max_x: float = None, min_y: float = None, max_y: float = None, limit: int = 200):
-    """
-    ITS API 타임아웃 발생 시 백업용으로 Supabase DB에서
-    해당 좌표 범위 내의 최신 교통정보 데이터를 조회합니다.
-    """
-    # 좌표 조건이 모두 전달된 경우 범위 쿼리 적용, 없으면 전체 최신 쿼리 적용
-    if all(v is not None for v in [min_x, max_x, min_y, max_y]):
-        select_query = """
-        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at, latitude, longitude
-        FROM traffic_information
-        WHERE (longitude BETWEEN %s AND %s AND latitude BETWEEN %s AND %s)
-        ORDER BY collected_at DESC
-        LIMIT %s;
-        """
-        params = (min_x, max_x, min_y, max_y, limit)
-    else:
-        select_query = """
-        SELECT road_name, road_type, link_id, speed, travel_time, traffic_status, collected_at, latitude, longitude
-        FROM traffic_information
-        ORDER BY collected_at DESC
-        LIMIT %s;
-        """
-        params = (limit,)
+---
 
-    traffic_items = []
-    try:
-        with get_database_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(select_query, params)
-                rows = cur.fetchall()
-                for row in rows:
-                    traffic_items.append({
-                        "roadName": row[0],
-                        "roadDrcType": row[1],
-                        "linkId": row[2],
-                        "speed": str(row[3]) if row[3] is not None else "0",
-                        "travelTime": str(row[4]) if row[4] is not None else "0",
-                        "createdDate": row[6].astimezone(timezone(timedelta(hours=9))).strftime("%Y%m%d%H%M%S") if row[6] else "",
-                        "coordY": str(row[7]) if row[7] is not None else None,
-                        "coordX": str(row[8]) if row[8] is not None else None
-                    })
-    except Exception as e:
-        logger.error("DB 교통정보 조회 중 오류 발생: %s", e)
-        raise
-    
-    return traffic_items
+## 📁 프로젝트 구조 (Project Structure)
+
+```text
+├── app/
+│   ├── database.py       # Supabase PostgreSQL DB 연동 및 CRUD 로직
+│   └── its_api.py        # ITS 국가교통정보센터 Open API 호출 모듈
+├── static/
+│   ├── index.html        # 메인 교통정보 목록 및 동네/좌표 검색 UI
+│   └── map.html          # OpenLayers 기반 실시간 교통 지도 페이지
+├── main.py               # FastAPI 엔드포인트 및 카카오 API 연동 로직
+├── requirements.txt      # 프로젝트 의존성 라이브러리 목록
+├── vercel.json           # Vercel 배포 설정 파일
+└── .env                  # 환경변수 설정 파일 (Git 미포함)

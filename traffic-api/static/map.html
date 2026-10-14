@@ -177,9 +177,6 @@
 
                 const result = await response.json();
                 const itemCount = result?.body?.items?.length || 0;
-                if (result.location) {
-                    map.getView().animate({center: ol.proj.fromLonLat([result.location.x, result.location.y]), zoom: 14});
-                }
                 alert(`'${location}' 주변 교통정보 조회가 완료되었습니다! (수집 건수: ${itemCount}건)`);
             } catch (err) {
                 alert("오류: " + err.message);

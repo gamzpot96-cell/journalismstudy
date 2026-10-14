@@ -393,7 +393,7 @@
             const tableBody = document.getElementById("trafficTableBody");
             const resultCount = document.getElementById("resultCount");
 
-            if (!trafficData.body || !Array.isArray(trafficData.body.items) || trafficData.body.items.length === 0) {
+            if (!trafficData.body || !trafficData.body.items) {
                 tableBody.innerHTML = `<tr><td colspan="5" class="empty-message">조회된 교통정보가 없습니다.</td></tr>`;
                 resultCount.textContent = "조회 결과 없음";
                 return;
@@ -427,12 +427,13 @@
                     statusClass = "traffic-slow";
                 }
 
-                [roadName, `${speed} km/h`, `${travelTime}초`, trafficStatus, createdDate].forEach((value, index) => {
-                    const cell = document.createElement("td");
-                    cell.textContent = value;
-                    if (index === 3) cell.className = statusClass;
-                    row.appendChild(cell);
-                });
+                row.innerHTML = `
+                    <td>${roadName}</td>
+                    <td>${speed} km/h</td>
+                    <td>${travelTime}분</td>
+                    <td class="${statusClass}">${trafficStatus}</td>
+                    <td>${createdDate}</td>
+                `;
 
                 tableBody.appendChild(row);
             });
