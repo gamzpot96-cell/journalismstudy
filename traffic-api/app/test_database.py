@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.database import save_traffic_information_list
 from app.its_api import get_traffic_information
@@ -63,10 +63,7 @@ async def test_its_to_database():
         # ITS 수집 시간
         created_date = traffic_item.get("createdDate")
 
-        collected_at = datetime.strptime(
-            created_date,
-            "%Y%m%d%H%M%S"
-        )
+        collected_at = (datetime.strptime(created_date, "%Y%m%d%H%M%S").replace(tzinfo=timezone(timedelta(hours=9))) if created_date else datetime.now(timezone.utc))
 
         # 데이터베이스에 저장할 데이터
         traffic_information = (
@@ -76,8 +73,8 @@ async def test_its_to_database():
             speed,
             travel_time,
             traffic_status,
-            None,
-            None,
+            float(traffic_item["coordY"]) if traffic_item.get("coordY") else None,
+            float(traffic_item["coordX"]) if traffic_item.get("coordX") else None,
             collected_at
         )
 
