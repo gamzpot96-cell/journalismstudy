@@ -10,11 +10,11 @@ def get_database_connection():
     Supabase PostgreSQL 데이터베이스 커넥션을 생성하여 반환합니다.
     """
     # Vercel Serverless 환경 대응을 위해 Transaction Pooler 포트(6543) 사용
-    port = os.getenv("POSTGRES_PORT", "6543")
+    
     
     return psycopg.connect(
         host=os.getenv("POSTGRES_HOST"),
-        port=port,
+        port=os.getenv("POSTGRES_PORT", "6543"),
         user=os.getenv("POSTGRES_USER"),
         password=os.getenv("POSTGRES_PASSWORD"),
         dbname=os.getenv("POSTGRES_DB", "postgres"),
